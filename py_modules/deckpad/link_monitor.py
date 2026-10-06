@@ -129,13 +129,13 @@ class LinkMonitor:
             handle &= 0x0FFF
             if status == 0 and handle in self._links:
                 self._links[handle] = interval * _UNIT
-                log.info("Host link %d now at a %.2f ms connection interval", handle, interval * 1.25)
+                log.info("Host link %d now at a %.2f ms connection interval", handle, self._links[handle] * 1000)
 
     def _connected(self, status, handle, role, interval):
         if status != 0 or role != _ROLE_PERIPHERAL:
             return
         self._links[handle] = interval * _UNIT
-        log.info("Host link %d connected at a %.2f ms connection interval", handle, interval * 1.25)
+        log.info("Host link %d connected at a %.2f ms connection interval", handle, self._links[handle] * 1000)
 
     def _forget(self, handle):
         self._links.pop(handle, None)

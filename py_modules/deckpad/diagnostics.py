@@ -12,7 +12,7 @@ import os
 import sys
 import time
 
-from . import bluez, connection_interval, deck_input, device_id, errors, identity
+from . import bluez, connection_interval, deck_controls, device_id, errors, identity
 
 log = logging.getLogger("deckpad.diagnostics")
 
@@ -173,7 +173,7 @@ def _controls_summary(state):
         return "reading"
     if state["controls_reading"] is False:
         return "not found" if (state["controls_problem"] or "").startswith("no ") else "not readable"
-    return "found" if deck_input.find_controller_node() else "not found"
+    return "found" if deck_controls.find_controller_node() else "not found"
 
 
 def _identity_summary(root, bt):

@@ -20,6 +20,7 @@ import logging
 
 from . import bluez, errors
 from .hosts import display_name
+from .tasks import Tasks
 
 log = logging.getLogger("deckpad.connections")
 
@@ -44,7 +45,7 @@ class Connections:
         self._peripheral = None
         self._paused = False
         self._error = None
-        self._tasks = set()
+        self._tasks = Tasks()
 
     @property
     def error(self):
@@ -52,27 +53,29 @@ class Connections:
         return self._error
 
     def snapshot(self):
-        devices = self._devices_by_address()
-        hosts = []
-        for host in self._paired_hosts.all():
-            device = devices.get(host["address"], {})
-            hosts.append(
-                {
-                    "address": host["address"],
-                    "name": host["name"],
-                    "connected": bool(device.get("Connected")),
-                }
-            )
-        hosts.sort(key=lambda h: (not h["connected"], (h["name"] or "").lower(), h["address"]))
+        return {"hosts": self._hosts(), "connection": self.status}
+
+    @property
+    def status(self):
+        """One of CONNECTED, WAITING, PAUSED, IDLE."""
+        hosts = self._hosts()
         if any(h["connected"] for h in hosts):
-            status = CONNECTED
-        elif hosts and self._peripheral is not None and self._peripheral.advertising:
-            status = WAITING
-        elif hosts and self._peripheral is not None and self._paused:
-            status = PAUSED
-        else:
-            status = IDLE
-        return {"hosts": hosts, "connection": status}
+            return CONNECTED
+        if hosts and self._peripheral is not None and self._peripheral.advertising:
+            return WAITING
+        if hosts and self._peripheral is not None and self._paused:
+            return PAUSED
+        return IDLE
+
+    def _hosts(self):
+        """Paired Hosts for the panel, the Connected Host first."""
+        devices = self._devices_by_address()
+        hosts = [
+            dict(host.to_dict(), connected=bool(devices.get(host.address, {}).get("Connected")))
+            for host in self._paired_hosts.all()
+        ]
+        hosts.sort(key=lambda h: (not h["connected"], (h["name"] or "").lower(), h["address"]))
+        return hosts
 
     async def reconcile(self):
         """Advertise for Paired Hosts exactly while one could reconnect and Pairing Mode is not advertising."""
@@ -133,13 +136,13 @@ class Connections:
         async with bluez.temporary_connection() as bus:
             adapter_path, _adapter = await bluez.find_adapter(bus)
             for host in self._paired_hosts.all():
-                log.info("Forgetting %s", host["address"])
+                log.info("Forgetting %s", host.address)
                 try:
-                    await _remove_pairing(bus, adapter_path, host["address"])
+                    await _remove_pairing(bus, adapter_path, host.address)
                 except bluez.BluezError as e:
-                    log.warning("Could not remove the pairing with %s: %s", host["address"], e)
+                    log.warning("Could not remove the pairing with %s: %s", host.address, e)
                 else:
-                    self._paired_hosts.remove(host["address"])
+                    self._paired_hosts.remove(host.address)
 
     async def drop_stale_links(self):
         """While Controller Mode is off, disconnect Paired Hosts that are still connected.
@@ -159,7 +162,7 @@ class Connections:
 
     def device_removed(self, path, device):
         if device.get("Address") in self._paired_hosts:
-            self._spawn(self._confirm_removed(device["Address"]))
+            self._tasks.spawn(self._confirm_removed(device["Address"]))
 
     async def _confirm_removed(self, address):
         """Forget a Paired Host whose pairing was removed elsewhere (Steam's Bluetooth settings)."""
@@ -189,16 +192,15 @@ class Connections:
         self._error = None
         known = {d.get("Address") for d in peripheral.devices()}
         for host in self._paired_hosts.all():
-            if host["address"] not in known:
-                log.info("%s was unpaired outside DeckPad; forgetting it", host["address"])
-                self._paired_hosts.remove(host["address"])
+            if host.address not in known:
+                log.info("%s was unpaired outside DeckPad; forgetting it", host.address)
+                self._paired_hosts.remove(host.address)
         for device in peripheral.devices():
             self._refresh_name(device)
 
     def detach(self):
         """The session is ending: drop its background work without waiting, so it also serves unload."""
-        for task in list(self._tasks):
-            task.cancel()
+        self._tasks.cancel_all()
         self._peripheral = None
         self._error = None
 
@@ -207,11 +209,11 @@ class Connections:
             return
         renamed = self._refresh_name(after)
         if _connected_and_paired(after) and not _connected_and_paired(before):
-            self._spawn(self._take_over(after))
+            self._tasks.spawn(self._take_over(after))
         elif before.get("Connected") != after.get("Connected"):
-            self._spawn(self._update())
+            self._tasks.spawn(self._update())
         elif renamed:
-            self._spawn(self._on_change())
+            self._tasks.spawn(self._on_change())
 
     async def _take_over(self, device):
         """One Connected Host at a time: the Host that connected (or just paired) last gets the controls."""
@@ -240,11 +242,6 @@ class Connections:
         if self._peripheral is None:
             return {}
         return {d.get("Address"): d for d in self._peripheral.devices()}
-
-    def _spawn(self, coro):
-        task = asyncio.get_running_loop().create_task(coro)
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
 
 
 def _connected_and_paired(device):

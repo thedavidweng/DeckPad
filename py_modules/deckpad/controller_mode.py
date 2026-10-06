@@ -16,11 +16,12 @@ import threading
 from . import connection_interval, errors
 from .bluetooth_watch import BluetoothWatch
 from .connections import Connections
-from .deck_input import DeckInput
+from .deck_controls import DeckControls
 from .link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 from .hosts import PairedHosts
 from .pairing import PairingMode
 from .peripheral import Peripheral, restore_leftover_device_id
+from .tasks import Tasks
 
 log = logging.getLogger("deckpad.controller_mode")
 
@@ -61,30 +62,25 @@ class ControllerMode:
         self._stop_timeout = stop_timeout
         self._lock = asyncio.Lock()
         self._status = OFF
-        self._current_error = None
+        self._error = None
         # Recent errors, for diagnostics after the panel has cleared them.
         self._error_history = collections.deque(maxlen=10)
         self._peripheral = None
-        self._input = None
+        self._deck_controls = None
         self._link = None
         self._shorter_interval = None
         self._watch = None
-        # Gamepad Reports of the current session, by whether a Host received them, for diagnostics.
-        self._reports = {True: 0, False: 0}
-        self._tasks = set()
+        # Gamepad Reports of the current session, for diagnostics.
+        self._reports = _ReportCount()
+        self._tasks = Tasks()
         self._closed = False
         self._pairing = PairingMode(on_change=self._pairing_changed, on_paired=self._paired_hosts.add)
         self._connections = Connections(self._paired_hosts, self._pairing, on_change=self._changed)
 
-    @property
-    def _error(self):
-        return self._current_error
-
-    @_error.setter
-    def _error(self, error):
-        self._current_error = error
-        if error is not None:
-            self._error_history.append(error)
+    def _record_error(self, error):
+        """Show `error` on the panel, and keep it for diagnostics after the panel has cleared it."""
+        self._error = error
+        self._error_history.append(error)
 
     def diagnostics(self):
         """Internal state for the Troubleshooting surface; not part of the panel's normal state."""
@@ -95,14 +91,14 @@ class ControllerMode:
         errors_seen.sort(key=lambda e: e.occurred_at)
         return {
             "status": self._status,
-            "pairing": self._pairing.snapshot()["status"],
-            "connection": self._connections.snapshot()["connection"],
+            "pairing": self._pairing.status,
+            "connection": self._connections.status,
             "advertising": self._peripheral.advertising if self._peripheral is not None else None,
-            "controls_reading": self._input.available if self._input is not None else None,
-            "controls_problem": self._input.problem if self._input is not None else None,
+            "controls_reading": self._deck_controls.available if self._deck_controls is not None else None,
+            "controls_problem": self._deck_controls.problem if self._deck_controls is not None else None,
             "link_intervals": self._link.intervals() if self._link is not None else [],
-            "reports_delivered": self._reports[True],
-            "reports_undelivered": self._reports[False],
+            "reports_delivered": self._reports.delivered,
+            "reports_undelivered": self._reports.undelivered,
             "errors": errors_seen,
         }
 
@@ -113,14 +109,14 @@ class ControllerMode:
             "status": self._status,
             "error": error.to_dict() if error else None,
             "pairing": self._pairing.snapshot(),
-            "controls": self._controls(),
+            "controls": self._controls_state(),
             **self._connections.snapshot(),
         }
 
-    def _controls(self):
-        if self._input is None:
+    def _controls_state(self):
+        if self._deck_controls is None:
             return None
-        if self._input.available:
+        if self._deck_controls.available:
             return {"available": True, "message": None}
         return {"available": False, "message": CONTROLS_UNAVAILABLE}
 
@@ -174,15 +170,23 @@ class ControllerMode:
                 await self._run(self._connections.allow_reconnect(), errors.reconnect_unavailable)
         return self.snapshot()
 
-    async def recover_from_previous_run(self):
-        """At backend start: undo what a previous backend that was killed left behind."""
+    async def clean_up_after_previous_run(self):
+        """At backend start: undo what a previous backend that was killed left behind.
+
+        Decky SIGKILLs plugins that are slow to stop, and then nothing restored bluetoothd's DeviceID or
+        the adapter's connection interval, or disconnected the Paired Host that was connected.
+        """
         async with self._lock:
             if self._status != OFF:
                 return
+            await restore_leftover_device_id()
             try:
                 await asyncio.wait_for(self._connections.drop_stale_links(), self._stop_timeout)
             except Exception as e:
                 log.info("Could not check for Hosts left connected by a previous run: %r", e)
+            if self._interval_state_path and os.geteuid() == 0:
+                if connection_interval.restore_leftover(self._interval_state_path):
+                    log.info("Restored the adapter's connection interval left over from a previous run")
 
     async def _run(self, action, failure, address=None):
         """Run a panel action; if it fails, the panel says what went wrong instead of nothing happening."""
@@ -191,18 +195,12 @@ class ControllerMode:
         except Exception as e:
             log.warning("Connection action failed: %r", e)
             if address is None:
-                self._error = failure(repr(e))
+                self._record_error(failure(repr(e)))
             else:
-                self._error = failure(self._host_name(address), repr(e))
+                self._record_error(failure(self._paired_hosts.name(address), repr(e)))
         else:
             self._error = None
         await self._changed()
-
-    def _host_name(self, address):
-        for host in self._paired_hosts.all():
-            if host["address"] == address:
-                return host["name"]
-        return None
 
     def shutdown(self):
         """Return the Deck to ordinary SteamOS Bluetooth behaviour immediately, for plugin unload.
@@ -214,8 +212,7 @@ class ControllerMode:
         a round trip.
         """
         self._closed = True
-        for task in list(self._tasks):
-            task.cancel()
+        self._tasks.cancel_all()
         self._end_session()
         self._status = OFF
         log.info("Controller Mode off (unload)")
@@ -256,7 +253,7 @@ class ControllerMode:
         try:
             opened = await self._open_session()
         except errors.ControllerModeError as e:
-            self._error = e
+            self._record_error(e)
             await self._set_status(OFF)
             return
         if opened:
@@ -268,7 +265,9 @@ class ControllerMode:
 
         On failure everything is released again and the ControllerModeError is raised.
         """
-        peripheral = Peripheral(listener=_Listeners(self._pairing, self._connections, self._paired_hosts), paired_hosts=self._paired_hosts)
+        peripheral = Peripheral(
+            listener=_Listeners(self._pairing, self._connections, self._paired_hosts), paired_hosts=self._paired_hosts
+        )
         watch = BluetoothWatch(lambda reason: self._session_lost(watch, reason))
         self._peripheral = peripheral
         self._watch = watch
@@ -290,7 +289,7 @@ class ControllerMode:
                 return False
             # Input first: the connection interval range must be set before any advertisement lets a
             # Host connect, because the kernel only asks for it when the connection comes up.
-            self._start_input(peripheral)
+            self._start_deck_controls(peripheral)
             self._pairing.attach(peripheral)
             self._connections.attach(peripheral)
             await self._connections.reconcile()
@@ -302,29 +301,28 @@ class ControllerMode:
         self._watch = None
         raise error
 
-    def _end_session(self):
-        """Synchronous, so it also serves plugin unload."""
+    def _end_session(self, keep_peripheral=False):
+        """Release everything the session runs. Synchronous, so it also serves plugin unload.
+
+        With `keep_peripheral`, the Peripheral is returned still open, for an orderly `stop()`.
+        """
         self._pairing.detach()
         self._connections.detach()
-        self._stop_input()
-        if self._peripheral is not None:
-            self._peripheral.close()
-            self._peripheral = None
-        self._stop_watch()
-
-    def _stop_watch(self):
+        self._stop_deck_controls()
         if self._watch is not None:
             self._watch.stop()
             self._watch = None
+        peripheral, self._peripheral = self._peripheral, None
+        if keep_peripheral:
+            return peripheral
+        if peripheral is not None:
+            peripheral.close()
+        return None
 
     async def _stop(self):
-        self._pairing.detach()
-        self._connections.detach()
-        self._stop_input()
-        self._stop_watch()
+        peripheral = self._end_session(keep_peripheral=True)
         self._error = None
         await self._set_status(STOPPING)
-        peripheral, self._peripheral = self._peripheral, None
         try:
             await asyncio.wait_for(peripheral.stop(), self._stop_timeout)
         except Exception as e:
@@ -336,7 +334,7 @@ class ControllerMode:
 
     def _session_lost(self, watch, reason):
         if not self._closed:
-            self._spawn(self._recover(watch, reason))
+            self._tasks.spawn(self._recover(watch, reason))
 
     async def _recover(self, watch, reason):
         """Bluetooth went away underneath the session: drop it, and start a new one once Bluetooth is back.
@@ -368,7 +366,7 @@ class ControllerMode:
                     if loop.time() < deadline:
                         continue
                     log.warning("Bluetooth did not come back; Controller Mode is off")
-                    self._error = errors.session_lost(e)
+                    self._record_error(errors.session_lost(e))
                     await self._set_status(OFF)
                     return
 
@@ -378,7 +376,7 @@ class ControllerMode:
         await self._connections.reconcile()
         await self._changed()
 
-    def _start_input(self, peripheral):
+    def _start_deck_controls(self, peripheral):
         report_interval = lambda: FALLBACK_REPORT_INTERVAL  # noqa: E731
         index = peripheral.adapter_index
         # Both need root: MGMT configuration commands and HCI event filters are privileged.
@@ -389,30 +387,25 @@ class ControllerMode:
             self._link = LinkMonitor(index)
             self._link.start()
             report_interval = self._link.report_interval
-        self._reports = {True: 0, False: 0}
+        self._reports = _ReportCount()
 
         def send(report):
             delivered = peripheral.send_gamepad_report(report)
-            self._reports[bool(delivered)] += 1
+            self._reports.count(delivered)
             return delivered
 
-        self._input = DeckInput(send, report_interval, self._controls_changed)
-        self._input.start()
+        self._deck_controls = DeckControls(send, report_interval, self._controls_changed)
+        self._deck_controls.start()
 
     def _controls_changed(self):
         if self._status == ON:
-            self._spawn(self._changed())
+            self._tasks.spawn(self._changed())
 
-    def _spawn(self, coro):
-        task = asyncio.get_running_loop().create_task(coro)
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-
-    def _stop_input(self):
+    def _stop_deck_controls(self):
         """Synchronous, so it also serves plugin unload."""
-        if self._input is not None:
-            self._input.stop()
-            self._input = None
+        if self._deck_controls is not None:
+            self._deck_controls.stop()
+            self._deck_controls = None
         if self._link is not None:
             self._link.stop()
             self._link = None
@@ -462,3 +455,15 @@ class _Listeners:
 
     def device_removed(self, path, device):
         self._connections.device_removed(path, device)
+
+
+class _ReportCount:
+    def __init__(self):
+        self.delivered = 0
+        self.undelivered = 0
+
+    def count(self, delivered):
+        if delivered:
+            self.delivered += 1
+        else:
+            self.undelivered += 1

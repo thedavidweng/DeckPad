@@ -12,7 +12,7 @@ import os
 from .gamepad_report import DECK_STATE_REPORT_SIZE, gamepad_report
 from .report_pacer import ReportPacer
 
-log = logging.getLogger("deckpad.deck_input")
+log = logging.getLogger("deckpad.deck_controls")
 
 HIDRAW_CLASS = "/sys/class/hidraw"
 DEV_DIR = "/dev"
@@ -41,7 +41,7 @@ def find_controller_node():
     return None
 
 
-class DeckInput:
+class DeckControls:
     def __init__(self, send, report_interval, on_change=None):
         """`send(report)` delivers one Gamepad Report and returns whether a Host received it.
 

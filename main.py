@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "py_
 
 import decky  # noqa: E402
 
-from deckpad import connection_interval, controller_mode, diagnostics, peripheral  # noqa: E402
+from deckpad import controller_mode, diagnostics  # noqa: E402
 from deckpad.hosts import PairedHosts  # noqa: E402
 
 STATE_EVENT = "controller_mode_state"
@@ -69,10 +69,7 @@ class Plugin:
         from dbus_fast.__version__ import __version__ as dbus_fast_version
 
         decky.logger.info("DeckPad backend started (dbus-fast %s)", dbus_fast_version)
-        await peripheral.restore_leftover_device_id()
-        await self._controller_mode.recover_from_previous_run()
-        if os.geteuid() == 0 and connection_interval.restore_leftover(_interval_state_path()):
-            decky.logger.info("Restored the adapter's connection interval left over from a previous run")
+        await self._controller_mode.clean_up_after_previous_run()
 
     async def _unload(self):
         self._controller_mode.shutdown()

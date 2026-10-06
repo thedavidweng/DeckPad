@@ -7,7 +7,7 @@ import asyncio
 import unittest
 from unittest import mock
 
-from deckpad import deck_input
+from deckpad import deck_controls
 from deckpad.link_monitor import FALLBACK_REPORT_INTERVAL
 
 from tests.support.deck_state import deck_state_report
@@ -40,7 +40,7 @@ class InputCase(PluginTestCase):
             ("DEV_DIR", self.controller.dev_dir),
             ("REOPEN_DELAY", 0.05),
         ):
-            patcher = mock.patch.object(deck_input, name, value)
+            patcher = mock.patch.object(deck_controls, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
         await super().asyncSetUp()
@@ -118,7 +118,7 @@ class AConnectedHostReceivesTheDeckControls(InputCase):
 
 
 class AHostReturningInALaterSession(InputCase):
-    """A bonded Host keeps the GATT database it discovered and reuses it when it reconnects. On the Deck,
+    """A Paired Host keeps the GATT database it discovered and reuses it when it reconnects. On the Deck,
     bluetoothd's Database Hash stops updating once its handles pass 1023, so the Host never learns of
     a new layout; the HID service must come back at the handles the Host already knows."""
 

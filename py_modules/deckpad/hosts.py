@@ -5,6 +5,7 @@ keeps its own record of which bonds are Paired Hosts. Only these are ever listed
 forgotten by DeckPad.
 """
 
+import dataclasses
 import json
 import logging
 import os
@@ -12,11 +13,27 @@ import os
 log = logging.getLogger("deckpad.hosts")
 
 
+@dataclasses.dataclass(frozen=True)
+class Host:
+    address: str
+    # None while bluetoothd only knows the address.
+    name: "str | None" = None
+
+    @classmethod
+    def from_device(cls, device):
+        """The Host behind a Device1, named the way a person would recognise it."""
+        return cls(device.get("Address"), display_name(device))
+
+    def to_dict(self):
+        return {"address": self.address, "name": self.name}
+
+
 def display_name(device):
     """The name a person would recognise for a Device1, or None while bluetoothd only knows its address."""
     address = device.get("Address")
     name = device.get("Alias") or device.get("Name")
     if not name or (address and name == address.replace(":", "-")):
+        # bluetoothd's placeholder Alias for a device whose name it has not learned.
         return None
     return name
 
@@ -28,7 +45,7 @@ class PairedHosts:
         if path and os.path.exists(path):
             try:
                 with open(path) as f:
-                    self._hosts = {h["address"]: h for h in json.load(f)["hosts"]}
+                    self._hosts = {h["address"]: Host(h["address"], h["name"]) for h in json.load(f)["hosts"]}
             except (OSError, ValueError, KeyError, TypeError) as e:
                 log.warning("Ignoring unreadable Paired Host list %s: %r", path, e)
 
@@ -36,18 +53,23 @@ class PairedHosts:
         return address in self._hosts
 
     def all(self):
-        return [dict(h) for h in self._hosts.values()]
+        return list(self._hosts.values())
 
-    def add(self, address, name):
-        self._hosts[address] = {"address": address, "name": name}
+    def name(self, address):
+        """The recorded name of a Paired Host, or None."""
+        host = self._hosts.get(address)
+        return host.name if host else None
+
+    def add(self, host):
+        self._hosts[host.address] = host
         self._save()
 
     def rename(self, address, name):
         """Record a Paired Host's new name. Returns whether anything changed."""
         host = self._hosts.get(address)
-        if host is None or not name or host["name"] == name:
+        if host is None or not name or host.name == name:
             return False
-        host["name"] = name
+        self._hosts[address] = dataclasses.replace(host, name=name)
         self._save()
         return True
 
@@ -74,7 +96,7 @@ class PairedHosts:
             os.makedirs(os.path.dirname(self._path), exist_ok=True)
             tmp = self._path + ".tmp"
             with open(tmp, "w") as f:
-                json.dump({"hosts": self.all()}, f, indent=2)
+                json.dump({"hosts": [h.to_dict() for h in self.all()]}, f, indent=2)
             os.replace(tmp, self._path)
         except OSError as e:
             log.warning("Could not save the Paired Host list: %r", e)
