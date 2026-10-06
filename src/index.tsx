@@ -24,6 +24,7 @@ import {
   hostNames,
   setControllerMode,
   setPairingMode,
+  setQuitCombo,
   useControllerModeState,
 } from "./backend";
 import {
@@ -330,6 +331,16 @@ function Content() {
       {(state.status === "on" || state.status === "off") && (
         <PairedHostRows state={state} names={names} onRequestError={onRequestError} />
       )}
+      <PanelSection title="Settings">
+        <PanelSectionRow>
+          <ToggleField
+            label="Quit Combo"
+            description="Hold Menu + View + L1 + R1 to turn off Controller Mode. Turn this off if a game on the other device needs that combination."
+            checked={state.quit_combo}
+            onChange={(enabled) => setQuitCombo(enabled).catch(onRequestError)}
+          />
+        </PanelSectionRow>
+      </PanelSection>
       <Troubleshooting />
     </>
   );

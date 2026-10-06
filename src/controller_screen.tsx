@@ -1,5 +1,5 @@
-import { Focusable, GamepadEvent, Navigation } from "@decky/ui";
-import { useEffect, useState } from "react";
+import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
+import { useEffect, useRef, useState } from "react";
 import { FaGamepad } from "react-icons/fa";
 import { ControllerModeState, connectedHostName, useControllerModeState } from "./backend";
 
@@ -8,7 +8,9 @@ export const CONTROLLER_SCREEN_ROUTE = "/deckpad/controller";
 // Steam keeps reacting to the Deck's controls while they also go to the Host (ADR-0003). This screen
 // holds Steam's focus on one element that consumes every button and direction Steam's UI navigation
 // hands it, so the library or menus behind it do not move. The Steam and Quick Access buttons are
-// handled by Steam itself and still work, which is how the user leaves.
+// passed through so Steam can open its menus, which is how the user leaves.
+
+const STEAM_MENU_BUTTONS = new Set<number | undefined>([GamepadButton.STEAM_GUIDE, GamepadButton.STEAM_QUICK_MENU]);
 
 let screenOpen = false;
 const openListeners = new Set<(open: boolean) => void>();
@@ -61,8 +63,17 @@ export function ControllerScreen() {
     return () => setScreenOpen(false);
   }, []);
 
+  // When Controller Mode turns off (for example by the Quit Combo), there is nothing left to hold focus for.
+  const wasCapturing = useRef(capturing);
+  useEffect(() => {
+    if (wasCapturing.current && !capturing && state !== null) Navigation.NavigateBack();
+    wasCapturing.current = capturing;
+  }, [capturing]);
+
   const consume = (evt: GamepadEvent | CustomEvent) => {
     if (!capturing) return;
+    // Steam delivers these to the focused element too; cancelling them leaves the user with no way out.
+    if (STEAM_MENU_BUTTONS.has(evt.detail?.button)) return;
     evt.preventDefault();
     evt.stopPropagation();
   };
@@ -101,6 +112,7 @@ export function ControllerScreen() {
         <div style={{ fontSize: "16px", opacity: 0.7, maxWidth: "640px" }}>
           Steam on this Deck ignores the controls while this screen is open. To leave, press the … button and
           select Close Controller Screen in DeckPad, or press the Steam button.
+          {state?.quit_combo && " Hold Menu + View + L1 + R1 to turn off Controller Mode and leave."}
         </div>
       )}
     </Focusable>

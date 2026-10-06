@@ -205,6 +205,76 @@ class ReadingTheController(InputCase):
         self.assertIsNone((await self.state())["controls"])
 
 
+QUIT_COMBO = ("MENU", "VIEW", "LB", "RB")
+QUIT_COMBO_HELD = bytes.fromhex("00800080008000800000000000c00c00")
+
+
+class TheQuitCombo(InputCase):
+    """Menu + View + L1 + R1 held together, as Moonlight's quit combo: leaves Controller Mode from the
+    Deck's controls alone, even when Steam's UI on the Deck is not responding to them."""
+
+    async def test_it_turns_controller_mode_off(self):
+        await self.connect_host()
+
+        await self.press(deck_state_report(*QUIT_COMBO), until=lambda: self.plugin_status() != "on")
+        state = await when(self.plugin, lambda s: s["status"] == "off")
+
+        self.assertEqual(state["status"], "off")
+
+    async def test_the_host_is_left_with_nothing_held(self):
+        await self.connect_host()
+        await self.press(deck_state_report("A"), until=lambda: A_HELD in self.bluez.gamepad_reports())
+        # Controller Mode off unregisters the GATT application, so note where the reports went first.
+        path = self.bluez.input_report_path()
+
+        await self.press(deck_state_report(*QUIT_COMBO), until=lambda: self.plugin_status() != "on")
+        await when(self.plugin, lambda s: s["status"] == "off")
+
+        reports = [value for p, value in self.bluez.notifications if p == path]
+        self.assertNotIn(QUIT_COMBO_HELD, reports)
+        self.assertEqual(reports[-1], AT_REST)
+
+    async def test_another_button_held_with_it_is_sent_to_the_host_instead(self):
+        await self.connect_host()
+
+        await self.press(deck_state_report(*QUIT_COMBO, "A"), timeout=0.3)
+
+        self.assertEqual(self.plugin_status(), "on")
+
+    async def test_a_d_pad_direction_held_with_it_is_sent_to_the_host_instead(self):
+        await self.connect_host()
+
+        await self.press(deck_state_report(*QUIT_COMBO, "UP"), timeout=0.3)
+
+        self.assertEqual(self.plugin_status(), "on")
+
+    async def test_it_is_on_by_default(self):
+        self.assertTrue((await self.state())["quit_combo"])
+
+    async def test_turned_off_the_combo_goes_to_the_host(self):
+        await self.plugin.set_quit_combo(False)
+        await self.connect_host()
+
+        delivered = await self.press(
+            deck_state_report(*QUIT_COMBO), until=lambda: QUIT_COMBO_HELD in self.bluez.gamepad_reports()
+        )
+
+        self.assertTrue(delivered)
+        self.assertEqual(self.plugin_status(), "on")
+
+    async def test_turning_it_off_is_remembered_across_plugin_reloads(self):
+        state = await self.plugin.set_quit_combo(False)
+        self.assertFalse(state["quit_combo"])
+
+        await self.plugin._unload()
+        self.plugin = self.main.Plugin()
+
+        self.assertFalse((await self.state())["quit_combo"])
+
+    def plugin_status(self):
+        return self.plugin._controller_mode.snapshot()["status"]
+
+
 class AControllerThatAppearsLater(InputCase):
     plugged_in = False
 

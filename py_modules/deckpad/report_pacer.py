@@ -34,6 +34,16 @@ class ReportPacer:
             return
         self._transmit(report)
 
+    def send_now(self, report):
+        """Send `report` without waiting out the interval, replacing anything pending."""
+        if self._closed:
+            return
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        self._pending = None
+        self._transmit(report)
+
     def close(self):
         self._closed = True
         self._pending = None

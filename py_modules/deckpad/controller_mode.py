@@ -21,6 +21,7 @@ from .link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 from .hosts import PairedHosts
 from .pairing import PairingMode
 from .peripheral import Peripheral, restore_leftover_device_id
+from .settings import Settings
 from .tasks import Tasks
 
 log = logging.getLogger("deckpad.controller_mode")
@@ -54,10 +55,12 @@ class ControllerMode:
         stop_timeout=STOP_TIMEOUT,
         paired_hosts=None,
         interval_state_path=None,
+        settings=None,
     ):
         self._on_change = on_change
         self._interval_state_path = interval_state_path
         self._paired_hosts = paired_hosts if paired_hosts is not None else PairedHosts()
+        self._settings = settings if settings is not None else Settings()
         self._start_timeout = start_timeout
         self._stop_timeout = stop_timeout
         self._lock = asyncio.Lock()
@@ -110,6 +113,7 @@ class ControllerMode:
             "error": error.to_dict() if error else None,
             "pairing": self._pairing.snapshot(),
             "controls": self._controls_state(),
+            "quit_combo": self._settings.quit_combo,
             **self._connections.snapshot(),
         }
 
@@ -135,6 +139,17 @@ class ControllerMode:
                 self._error = None
                 await self._changed()
         return self.snapshot()
+
+    async def set_quit_combo(self, enabled):
+        """Whether the Quit Combo turns Controller Mode off, or goes to the Host like any other press."""
+        self._settings.set_quit_combo(enabled)
+        await self._changed()
+        return self.snapshot()
+
+    def _quit_combo_pressed(self):
+        if self._status == ON:
+            log.info("Controller Mode off (Quit Combo)")
+            self._tasks.spawn(self.set_enabled(False))
 
     async def set_pairing_mode(self, enabled):
         """Open or close Pairing Mode. It only exists while Controller Mode is on; otherwise this does nothing."""
@@ -219,7 +234,7 @@ class ControllerMode:
 
     def uninstall(self):
         """Remove what DeckPad leaves on the Deck, for plugin uninstall: the pairings of Paired Hosts (and
-        nothing else), leftovers of a killed run, and DeckPad's state files.
+        nothing else), leftovers of a killed run, and DeckPad's state and settings files.
 
         Decky runs this right after `_unload`, with the event loop just as stuck (see `shutdown`), so the
         Bluetooth part runs on its own event loop in a worker thread, joined with a timeout that keeps
@@ -238,6 +253,7 @@ class ControllerMode:
                 connection_interval.restore_leftover(self._interval_state_path)
             connection_interval.forget_leftover(self._interval_state_path)
         self._paired_hosts.erase()
+        self._settings.erase()
         log.info("DeckPad uninstalled")
 
     async def _remove_bluetooth_traces(self):
@@ -394,7 +410,13 @@ class ControllerMode:
             self._reports.count(delivered)
             return delivered
 
-        self._deck_controls = DeckControls(send, report_interval, self._controls_changed)
+        self._deck_controls = DeckControls(
+            send,
+            report_interval,
+            self._controls_changed,
+            on_quit_combo=self._quit_combo_pressed,
+            quit_combo_enabled=lambda: self._settings.quit_combo,
+        )
         self._deck_controls.start()
 
     def _controls_changed(self):

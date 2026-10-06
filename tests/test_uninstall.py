@@ -63,11 +63,13 @@ class UninstallingDeckPad(ConnectionsCase):
         os.makedirs(self.decky.DECKY_PLUGIN_RUNTIME_DIR, exist_ok=True)
         with open(interval_state, "w") as f:
             f.write('{"index": 0, "min": 24, "max": 40}')
+        await self.plugin.set_quit_combo(False)
 
         await self.uninstall()
 
         self.assertFalse(os.path.exists(interval_state))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")))
+        self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_LOG_DIR, "diagnostics.txt")))
 
     async def test_it_leaves_bluetooth_as_it_was_before_deckpad(self):

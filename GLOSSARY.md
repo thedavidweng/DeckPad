@@ -46,6 +46,10 @@ One raw snapshot of every Deck Control, as produced by the Deck's built-in contr
 One snapshot of the controller state in the form the Controller Identity defines, sent to the Connected Host.
 _Avoid_: HID packet, frame
 
+**Quit Combo**:
+Menu + View + L1 + R1 held together on the Deck, with no other button or D-pad direction. It turns Controller Mode off without going through Steam's UI. It can be turned off in the panel.
+_Avoid_: escape combo, panic button, hotkey
+
 **Controller Identity**:
 The controller model the Deck presents itself as to a Host. It determines how the Host recognises the controller and how it interprets Gamepad Reports.
 _Avoid_: profile, persona, emulated device

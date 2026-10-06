@@ -113,6 +113,15 @@ class PacingGamepadReports(unittest.IsolatedAsyncioTestCase):
 
         self.assertLessEqual(len(self.link.sent), 3)
 
+    async def test_a_report_sent_now_skips_the_wait_and_replaces_what_was_pending(self):
+        self.pacer.offer(b"A")
+        self.pacer.offer(b"B")
+
+        self.pacer.send_now(b"REST")
+        await asyncio.sleep(INTERVAL * 1.5)
+
+        self.assertEqual(self.link.sent, [b"A", b"REST"])
+
     async def test_after_closing_nothing_more_is_sent(self):
         self.pacer.offer(b"A")
         self.pacer.offer(b"B")

@@ -41,6 +41,7 @@ export interface ControllerModeState {
   hosts: PairedHost[];
   connection: ConnectionStatus;
   controls: ControlsState | null;
+  quit_combo: boolean;
 }
 
 const STATE_EVENT = "controller_mode_state";
@@ -51,6 +52,7 @@ export const setPairingMode = callable<[enabled: boolean], ControllerModeState>(
 export const disconnectHost = callable<[address: string], ControllerModeState>("disconnect_host");
 export const forgetHost = callable<[address: string], ControllerModeState>("forget_host");
 export const allowReconnect = callable<[], ControllerModeState>("allow_reconnect");
+export const setQuitCombo = callable<[enabled: boolean], ControllerModeState>("set_quit_combo");
 
 export function useControllerModeState(): ControllerModeState | null {
   const [state, setState] = useState<ControllerModeState | null>(null);

@@ -9,7 +9,7 @@ import asyncio
 import logging
 import os
 
-from .gamepad_report import DECK_STATE_REPORT_SIZE, gamepad_report
+from .gamepad_report import AT_REST, DECK_STATE_REPORT_SIZE, gamepad_report, is_quit_combo
 from .report_pacer import ReportPacer
 
 log = logging.getLogger("deckpad.deck_controls")
@@ -42,14 +42,20 @@ def find_controller_node():
 
 
 class DeckControls:
-    def __init__(self, send, report_interval, on_change=None):
+    def __init__(self, send, report_interval, on_change=None, on_quit_combo=None, quit_combo_enabled=lambda: True):
         """`send(report)` delivers one Gamepad Report and returns whether a Host received it.
 
         `report_interval()` is the time between reports the link can carry right now (ADR-0008).
         `on_change()` is called when the controller becomes readable or stops being readable.
+        `on_quit_combo()`, if given, is called once when the Quit Combo is pressed while
+        `quit_combo_enabled()` (ADR-0012); the Host then gets a report with nothing held instead of
+        the combo.
         """
         self._pacer = ReportPacer(send, report_interval)
         self._on_change = on_change
+        self._on_quit_combo = on_quit_combo
+        self._quit_combo_enabled = quit_combo_enabled
+        self._quit_combo_held = False
         self._fd = None
         self._retry = None
         self._running = False
@@ -140,8 +146,21 @@ class DeckControls:
             report = gamepad_report(data)
             if report is not None:
                 latest = report
-        if latest is not None:
-            self._pacer.offer(latest)
+        if latest is None:
+            return
+        if self._on_quit_combo is not None and is_quit_combo(latest) and self._quit_combo_enabled():
+            if not self._quit_combo_held:
+                self._quit_combo_held = True
+                # Like Moonlight: release everything on the Host, so no button stays stuck there.
+                self._pacer.send_now(AT_REST)
+                log.info("Quit Combo pressed")
+                try:
+                    self._on_quit_combo()
+                except Exception:
+                    log.exception("Quit Combo handler failed")
+            return
+        self._quit_combo_held = False
+        self._pacer.offer(latest)
 
     def _lost(self, reason):
         log.warning("Lost the Deck's controller (%s); reopening", reason)

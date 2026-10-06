@@ -9,6 +9,7 @@ import decky  # noqa: E402
 
 from deckpad import controller_mode, diagnostics  # noqa: E402
 from deckpad.hosts import PairedHosts  # noqa: E402
+from deckpad.settings import Settings  # noqa: E402
 
 STATE_EVENT = "controller_mode_state"
 INTERVAL_STATE_FILE = "connection_interval.json"
@@ -32,6 +33,7 @@ class Plugin:
             on_change=_publish,
             paired_hosts=PairedHosts(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")),
             interval_state_path=_interval_state_path(),
+            settings=Settings(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")),
         )
 
     async def get_state(self):
@@ -42,6 +44,9 @@ class Plugin:
 
     async def set_pairing_mode(self, enabled):
         return await self._controller_mode.set_pairing_mode(bool(enabled))
+
+    async def set_quit_combo(self, enabled):
+        return await self._controller_mode.set_quit_combo(bool(enabled))
 
     async def disconnect_host(self, address):
         return await self._controller_mode.disconnect_host(str(address))

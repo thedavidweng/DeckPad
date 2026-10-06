@@ -64,6 +64,11 @@ does not show up in other devices' scan lists.
   the next pairing attempt from that Host fails.
 - **Turning Controller Mode off** disconnects the Host and returns Bluetooth on the Deck to normal. It
   always starts off after a reboot, a Decky restart, or a plugin reload.
+- **Quit Combo.** Hold Menu + View + L1 + R1 together (and nothing else) to turn Controller Mode off
+  from the Deck's controls, the same combination Moonlight uses to quit a stream. The Host gets a
+  "nothing held" report instead of the combo, then disconnects, and the Controller Screen closes. If a
+  game on the Host needs that combination, turn off **Quit Combo** in the panel's Settings section;
+  the combo then goes to the Host like any other press.
 
 ### Controls
 
@@ -163,9 +168,10 @@ suspend/resume. These are on the manual test list; see
   the Quick Access menu, or a running game) also reacts to the buttons, and the Steam and `…` buttons
   still open Steam's menus. While a Host is connected, select **Open Controller Screen** in the panel:
   it fills the screen and holds Steam's focus so the library behind it does not move. To leave it,
-  press `…` and select **Close Controller Screen**, or press the Steam button. Do not run a game on the
-  Deck while using it as a controller. Whether the screen absorbs every press has not been checked by a
-  person yet.
+  press `…` and select **Close Controller Screen**, press the Steam button, or hold the Quit Combo
+  (which also turns Controller Mode off). Do not run a game on the Deck while using it as a
+  controller. Whether the screen absorbs every press, and whether these ways out work, has not been
+  checked by a person since the first build on the Deck swallowed the Steam and `…` buttons.
 - **Not sent:** rear buttons, trackpads, gyro, and rumble from the Host.
 - **Paired Hosts appear in Steam's Bluetooth settings**, because they are ordinary Bluetooth pairings.
   Removing one there also removes it from DeckPad.
@@ -207,13 +213,14 @@ Files DeckPad keeps, all under Decky's per-plugin directories:
 | File | Contents |
 |---|---|
 | `~/homebrew/settings/DeckPad/paired_hosts.json` | Bluetooth addresses and names of the Hosts paired through DeckPad |
+| `~/homebrew/settings/DeckPad/settings.json` | Whether the Quit Combo is on, once you have changed it |
 | `~/homebrew/data/DeckPad/connection_interval.json` | The adapter's previous connection interval, only while DeckPad has changed it |
 | `~/homebrew/logs/DeckPad/` | Decky's log files for DeckPad, and `diagnostics.txt` |
 
 Uninstalling DeckPad from Decky's settings removes the Deck's pairings with the Hosts paired through
 DeckPad, and only those: headphones, keyboards, and other devices you paired in Steam stay paired. It
 also puts back bluetoothd's DeviceID and the adapter's connection interval if a crashed DeckPad left
-them changed, and deletes `paired_hosts.json`, `connection_interval.json`, and `diagnostics.txt`
+them changed, and deletes `paired_hosts.json`, `settings.json`, `connection_interval.json`, and `diagnostics.txt`
 (Decky's own log files for DeckPad stay). If Bluetooth is off or does not answer within a few seconds
 during the uninstall, the pairings stay; remove them in Steam's Bluetooth settings. Each Host still
 lists the Deck afterwards: remove it in the Host's Bluetooth settings.

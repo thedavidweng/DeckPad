@@ -42,6 +42,18 @@ _HAT = {
 }
 
 
+AT_REST = struct.pack("<HHHHHHBBBB", 0x8000, 0x8000, 0x8000, 0x8000, 0, 0, 0, 0, 0, 0)
+
+# Moonlight's quit combo: Menu + View + LB + RB, and no other button or D-pad direction. Sticks and
+# triggers do not count, as in Moonlight.
+_QUIT_COMBO = bytes((0, 0x40 | 0x80, 0x04 | 0x08, 0))
+_HAT_AND_BUTTONS = slice(12, 16)
+
+
+def is_quit_combo(report):
+    return report[_HAT_AND_BUTTONS] == _QUIT_COMBO
+
+
 def gamepad_report(deck_state):
     """The 16-byte Gamepad Report for one Deck State Report, or None if `deck_state` is another kind of report."""
     if len(deck_state) < DECK_STATE_REPORT_SIZE or deck_state[0] != 0x01 or deck_state[2] != _DECK_STATE_REPORT_TYPE:
