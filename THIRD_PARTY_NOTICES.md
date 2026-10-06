@@ -8,9 +8,17 @@ DeckPad includes the following third-party software. Full license texts ship nex
   Copyright (c) 2001 Python Software Foundation; portions Copyright (c) 1999-2008 by Fredrik Lundh (license text in the file headers).
   `py_modules/_stdlib/xml/etree/` (license: `py_modules/_stdlib/LICENSE`).
 - **ESP32-BLE-CompositeHID** (`XboxOneS_1914_HIDDescriptor` from `XboxDescriptors.h`), MIT License.
-  Copyright (c) 2021 lemmingDev. The HID report descriptor bytes in `py_modules/deckpad/identity.py`;
-  license text below.
+  Copyright (c) 2021 lemmingDev. The HID report descriptor bytes in `py_modules/deckpad/identity.py`
+  (license: `py_modules/deckpad/ESP32-BLE-CompositeHID.LICENSE`, also reproduced below).
 - **decky-plugin-template**, BSD 3-Clause License. See the bottom of `LICENSE`.
+
+The Decky Plugin Store zip contains `LICENSE`, `README.md`, `main.py`, `package.json`, `plugin.json`,
+`dist/`, and `py_modules/`, but not this file, so every license text above also ships inside
+`py_modules/` next to the code it covers. `tests/test_store_package.py` checks that.
+
+DeckPad does not include code from the projects credited as prior art in the README (DeckJoy,
+DeckControllerOS, the Linux `hid-steam` driver, SDL). They were used as references for the design and
+for facts such as report offsets and button layouts.
 
 ## ESP32-BLE-CompositeHID license
 
