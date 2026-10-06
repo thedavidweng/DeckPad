@@ -1,115 +1,103 @@
-import {
-  ButtonItem,
-  PanelSection,
-  PanelSectionRow,
-  Navigation,
-  staticClasses
-} from "@decky/ui";
-import {
-  addEventListener,
-  removeEventListener,
-  callable,
-  definePlugin,
-  toaster,
-  // routerHook
-} from "@decky/api"
-import { useState } from "react";
-import { FaShip } from "react-icons/fa";
+import { Field, PanelSection, PanelSectionRow, ToggleField, staticClasses } from "@decky/ui";
+import { addEventListener, callable, definePlugin, removeEventListener } from "@decky/api";
+import { useEffect, useState } from "react";
+import { FaGamepad } from "react-icons/fa";
 
-// import logo from "../assets/logo.png";
+type Status = "off" | "starting" | "on" | "stopping";
 
-// This function calls the python function "add", which takes in two numbers and returns their sum (as a number)
-// Note the type annotations:
-//  the first one: [first: number, second: number] is for the arguments
-//  the second one: number is for the return value
-const add = callable<[first: number, second: number], number>("add");
+interface ControllerModeError {
+  code: string;
+  message: string;
+  detail: string | null;
+}
 
-// This function calls the python function "start_timer", which takes in no arguments and returns nothing.
-// It starts a (python) timer which eventually emits the event 'timer_event'
-const startTimer = callable<[], void>("start_timer");
+interface ControllerModeState {
+  enabled: boolean;
+  status: Status;
+  error: ControllerModeError | null;
+}
 
-function Content() {
-  const [result, setResult] = useState<number | undefined>();
+const STATE_EVENT = "controller_mode_state";
 
-  const onClick = async () => {
-    const result = await add(Math.random(), Math.random());
-    setResult(result);
-  };
+const getState = callable<[], ControllerModeState>("get_state");
+const setControllerMode = callable<[enabled: boolean], ControllerModeState>("set_controller_mode");
 
-  return (
-    <PanelSection title="Panel Section">
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={onClick}
-        >
-          {result ?? "Add two numbers via Python"}
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => startTimer()}
-        >
-          {"Start Python timer"}
-        </ButtonItem>
-      </PanelSectionRow>
-
-      {/* <PanelSectionRow>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={logo} />
-        </div>
-      </PanelSectionRow> */}
-
-      {/*<PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => {
-            Navigation.Navigate("/decky-plugin-test");
-            Navigation.CloseSideMenus();
-          }}
-        >
-          Router
-        </ButtonItem>
-      </PanelSectionRow>*/}
-    </PanelSection>
-  );
+const DESCRIPTIONS: Record<Status, string> = {
+  off: "Turn on to use this Deck as a Bluetooth controller for another device.",
+  starting: "Turning on…",
+  on: "This Deck is acting as a Bluetooth controller. Turn off to return to normal.",
+  stopping: "Turning off…",
 };
 
-export default definePlugin(() => {
-  console.log("Template plugin initializing, this is called once on frontend startup")
+function useControllerModeState(): ControllerModeState | null {
+  const [state, setState] = useState<ControllerModeState | null>(null);
 
-  // serverApi.routerHook.addRoute("/decky-plugin-test", DeckyPluginRouterTest, {
-  //   exact: true,
-  // });
+  useEffect(() => {
+    const listener = addEventListener<[ControllerModeState]>(STATE_EVENT, setState);
+    getState().then(setState).catch(() => setState(null));
+    return () => {
+      removeEventListener(STATE_EVENT, listener);
+    };
+  }, []);
 
-  // Add an event listener to the "timer_event" event from the backend
-  const listener = addEventListener<[
-    test1: string,
-    test2: boolean,
-    test3: number
-  ]>("timer_event", (test1, test2, test3) => {
-    console.log("Template got timer_event with:", test1, test2, test3)
-    toaster.toast({
-      title: "template got timer_event",
-      body: `${test1}, ${test2}, ${test3}`
-    });
-  });
+  return state;
+}
 
-  return {
-    // The name shown in various decky menus
-    name: "Test Plugin",
-    // The element displayed at the top of your plugin's menu
-    titleView: <div className={staticClasses.Title}>Decky Example Plugin</div>,
-    // The content of your plugin's menu
-    content: <Content />,
-    // The icon displayed in the plugin list
-    icon: <FaShip />,
-    // The function triggered when your plugin unloads
-    onDismount() {
-      console.log("Unloading")
-      removeEventListener("timer_event", listener);
-      // serverApi.routerHook.removeRoute("/decky-plugin-test");
-    },
+function Content() {
+  const state = useControllerModeState();
+  const [requestError, setRequestError] = useState<string | null>(null);
+
+  if (!state) {
+    return (
+      <PanelSection>
+        <PanelSectionRow>
+          <Field label="DeckPad" description="Connecting to the DeckPad backend…" />
+        </PanelSectionRow>
+      </PanelSection>
+    );
+  }
+
+  const busy = state.status === "starting" || state.status === "stopping";
+  const checked = state.status === "on" || state.status === "starting";
+
+  const onChange = async (enabled: boolean) => {
+    setRequestError(null);
+    try {
+      await setControllerMode(enabled);
+    } catch {
+      setRequestError("Reload DeckPad from Decky's settings, then try again.");
+    }
   };
-});
+
+
+  return (
+    <PanelSection>
+      <PanelSectionRow>
+        <ToggleField
+          label="Controller Mode"
+          description={DESCRIPTIONS[state.status]}
+          checked={checked}
+          disabled={busy}
+          onChange={onChange}
+        />
+      </PanelSectionRow>
+      {state.error && (
+        <PanelSectionRow>
+          <Field label="Could not turn on Controller Mode" description={state.error.message} focusable />
+        </PanelSectionRow>
+      )}
+      {requestError && (
+        <PanelSectionRow>
+          <Field label="DeckPad is not responding" description={requestError} focusable />
+        </PanelSectionRow>
+      )}
+    </PanelSection>
+  );
+}
+
+export default definePlugin(() => ({
+  name: "DeckPad",
+  titleView: <div className={staticClasses.Title}>DeckPad</div>,
+  content: <Content />,
+  icon: <FaGamepad />,
+}));

@@ -1,3 +1,17 @@
+# DeckPad
+
+DeckPad turns a Steam Deck into a Bluetooth game controller for another device, operated from a Decky
+plugin in Gaming Mode. Work in progress; see GitHub issue #1.
+
+## Development
+
+- Backend tests (lifecycle against a fake BlueZ on a private D-Bus; needs `dbus-daemon` and Python 3.11+):
+  `pnpm test`. To match Decky's interpreter, run them under Python 3.11: `mise x python@3.11 -- pnpm test`.
+- Frontend build: `pnpm build`.
+- Vendored Python modules and their versions: `py_modules/README.md`.
+
+---
+
 # Decky Plugin Template [![Chat](https://img.shields.io/badge/chat-on%20discord-7289da.svg)](https://deckbrew.xyz/discord)
 
 Reference example for using [decky-frontend-lib](https://github.com/SteamDeckHomebrew/decky-frontend-lib) (@decky/ui) in a [decky-loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin.

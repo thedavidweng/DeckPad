@@ -10,7 +10,7 @@
     "tags": [
       "deckpad"
     ],
-    "description": "DeckPad plugin.",
+    "description": "Use your Steam Deck as a Bluetooth game controller for another device.",
     "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
   }
 }
