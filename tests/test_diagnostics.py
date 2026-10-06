@@ -4,6 +4,7 @@ Driven through the plugin backend against a fake org.bluez on a private bus. The
 root, as DeckPad would on a misconfigured Decky."""
 
 import unittest
+from unittest import mock
 
 from tests.support.deck_state import deck_state_report
 from tests.support.fake_bluez import HOST_ADDRESS
@@ -75,6 +76,24 @@ class DiagnosticsWhenSomethingIsWrong(PluginTestCase):
 
         self.assertIn("Last error: bluetooth_off", diagnostics["text"])
         self.assertIn("powered no", diagnostics["text"])
+
+
+class WhenErrorsHappened(PluginTestCase):
+    async def test_errors_still_on_the_panel_keep_the_time_they_happened(self):
+        await self.plugin.set_controller_mode(True)
+        self.bluez.reject_advertisement = "Maximum advertisements reached"
+        with mock.patch("time.time", return_value=HAPPENED):
+            await self.plugin.set_pairing_mode(True)
+
+        with mock.patch("time.time", return_value=HAPPENED + 3600):
+            diagnostics = await self.plugin.get_diagnostics()
+
+        self.assertIn("  2026-10-06T12:00:00Z advertising_failed:", diagnostics["text"])
+        self.assertNotIn("13:00:00Z advertising_failed", diagnostics["text"])
+
+
+# 2026-10-06T12:00:00Z
+HAPPENED = 1791288000
 
 
 class DiagnosticsWithoutBluetooth(PluginTestCase):

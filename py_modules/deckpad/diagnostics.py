@@ -116,11 +116,11 @@ async def collect(controller_mode, version=None):
         link = "connected" if host["connected"] else "not connected"
         lines.append("  %s %s (%s)" % (host["address"], host["name"] or "(no name yet)", link))
     if state["errors"]:
-        _when, last = state["errors"][-1]
+        last = state["errors"][-1]
         lines.append("Last error: %s: %s" % (last.code, last.detail or last.message))
         lines.append("Recent errors:")
-        for when, error in state["errors"]:
-            lines.append("  %s %s: %s" % (_time(when), error.code, error.detail or error.message))
+        for error in state["errors"]:
+            lines.append("  %s %s: %s" % (_time(error.occurred_at), error.code, error.detail or error.message))
     else:
         lines.append("Last error: none")
     lines.append("Recent log:")

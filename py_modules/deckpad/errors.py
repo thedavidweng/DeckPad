@@ -1,3 +1,5 @@
+import time
+
 START_FAILED_TITLE = "Could not turn on Controller Mode"
 PAIRING_FAILED_TITLE = "Pairing did not finish"
 SESSION_LOST_TITLE = "Controller Mode turned off"
@@ -16,6 +18,8 @@ class ControllerModeError(Exception):
         self.title = title
         self.message = message
         self.detail = detail
+        # Wall-clock time, for diagnostics collected after the panel has moved on.
+        self.occurred_at = time.time()
 
     def to_dict(self):
         return {"code": self.code, "title": self.title, "message": self.message, "detail": self.detail}

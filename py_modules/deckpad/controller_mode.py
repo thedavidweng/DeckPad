@@ -11,7 +11,6 @@ import asyncio
 import collections
 import logging
 import os
-import time
 
 from . import connection_interval, errors
 from .bluetooth_watch import BluetoothWatch
@@ -61,7 +60,7 @@ class ControllerMode:
         self._lock = asyncio.Lock()
         self._status = OFF
         self._current_error = None
-        # (wall-clock time, error) of recent errors, for diagnostics after the panel has cleared them.
+        # Recent errors, for diagnostics after the panel has cleared them.
         self._error_history = collections.deque(maxlen=10)
         self._peripheral = None
         self._input = None
@@ -83,15 +82,15 @@ class ControllerMode:
     def _error(self, error):
         self._current_error = error
         if error is not None:
-            self._error_history.append((time.time(), error))
+            self._error_history.append(error)
 
     def diagnostics(self):
         """Internal state for the Troubleshooting surface; not part of the panel's normal state."""
         errors_seen = list(self._error_history)
-        if self._connections.error is not None:
-            errors_seen.append((time.time(), self._connections.error))
-        if self._pairing.error is not None:
-            errors_seen.append((time.time(), self._pairing.error))
+        for error in (self._connections.error, self._pairing.error):
+            if error is not None and error not in errors_seen:
+                errors_seen.append(error)
+        errors_seen.sort(key=lambda e: e.occurred_at)
         return {
             "status": self._status,
             "pairing": self._pairing.snapshot()["status"],
