@@ -48,6 +48,10 @@ class PairingMode:
         }
 
     @property
+    def error(self):
+        return self._error
+
+    @property
     def accepting(self):
         return self._status in (DISCOVERABLE, PAIRING)
 

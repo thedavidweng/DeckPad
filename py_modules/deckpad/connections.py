@@ -19,7 +19,7 @@ import logging
 from dbus_fast import BusType
 from dbus_fast.aio import MessageBus
 
-from . import bluez
+from . import bluez, errors
 from .hosts import display_name
 
 log = logging.getLogger("deckpad.connections")
@@ -28,6 +28,11 @@ CONNECTED = "connected"
 WAITING = "waiting"
 PAUSED = "paused"
 IDLE = "idle"
+
+# bluetoothd also unregisters every device object (keeping the bonds) when it exits or loses the
+# adapter, so a removal is only believed once Bluetooth still reports it a moment later.
+REMOVAL_CHECK_DELAY = 0.5
+REMOVAL_CHECK_TIMEOUT = 3.0
 
 
 class Connections:
@@ -39,7 +44,13 @@ class Connections:
         self._on_change = on_change
         self._peripheral = None
         self._paused = False
+        self._error = None
         self._tasks = set()
+
+    @property
+    def error(self):
+        """Why Paired Hosts cannot reconnect right now, or None."""
+        return self._error
 
     def snapshot(self):
         devices = self._devices_by_address()
@@ -76,6 +87,10 @@ class Connections:
                 await peripheral.stop_advertising()
         except Exception as e:
             log.warning("Could not update the reconnect advertisement: %r", e)
+            if self._peripheral is peripheral:
+                self._error = errors.reconnect_unavailable(repr(e))
+        else:
+            self._error = None
 
     async def disconnect(self, address):
         """Drop a Connected Host's link, keeping its pairing, and pause reconnecting."""
@@ -106,19 +121,50 @@ class Connections:
         bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
         try:
             adapter_path, _adapter = await bluez.find_adapter(bus)
-            for path, interfaces in (await bluez.managed_objects(bus)).items():
-                device = interfaces.get(bluez.DEVICE)
-                if device is not None and bluez.device_properties(device).get("Address") == address:
-                    await bluez.remove_device(bus, adapter_path, path)
+            for path in await _device_paths(bus, address):
+                await bluez.remove_device(bus, adapter_path, path)
         finally:
             bus.disconnect()
         self._paired_hosts.remove(address)
 
+    async def drop_stale_links(self):
+        """While Controller Mode is off, disconnect Paired Hosts that are still connected.
+
+        That only happens when a previous backend was killed (Decky SIGKILLs plugins that are slow to
+        stop) before it could disconnect them. The Host then keeps a link to a Deck that no longer
+        serves its controller, and does not rebuild the controller until that link drops.
+        """
+        if not self._paired_hosts.all():
+            return
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        try:
+            for path, interfaces in (await bluez.managed_objects(bus)).items():
+                device = bluez.device_properties(interfaces.get(bluez.DEVICE, {}))
+                if device.get("Connected") and device.get("Address") in self._paired_hosts:
+                    log.info("Disconnecting %s, left connected by a previous run", device["Address"])
+                    await bluez.disconnect_device(bus, path)
+        finally:
+            bus.disconnect()
+
     def device_removed(self, path, device):
-        # The pairing was removed elsewhere (Steam's Bluetooth settings), so the Host is no longer paired.
         if device.get("Address") in self._paired_hosts:
-            self._paired_hosts.remove(device["Address"])
-            self._spawn(self._update())
+            self._spawn(self._confirm_removed(device["Address"]))
+
+    async def _confirm_removed(self, address):
+        """Forget a Paired Host whose pairing was removed elsewhere (Steam's Bluetooth settings)."""
+        await asyncio.sleep(REMOVAL_CHECK_DELAY)
+        if self._peripheral is None:
+            # The session ended; the next one checks the record against what bluetoothd reports.
+            return
+        try:
+            gone = await asyncio.wait_for(_unpaired(address), REMOVAL_CHECK_TIMEOUT)
+        except Exception as e:
+            log.info("Keeping %s: could not check whether it is still paired: %r", address, e)
+            return
+        if gone and address in self._paired_hosts:
+            log.info("%s was unpaired outside DeckPad; forgetting it", address)
+            self._paired_hosts.remove(address)
+            await self._update()
 
     async def allow_reconnect(self):
         if self._peripheral is None:
@@ -129,6 +175,7 @@ class Connections:
     def attach(self, peripheral):
         self._peripheral = peripheral
         self._paused = False
+        self._error = None
         known = {d.get("Address") for d in peripheral.devices()}
         for host in self._paired_hosts.all():
             if host["address"] not in known:
@@ -139,6 +186,7 @@ class Connections:
 
     def detach(self):
         self._peripheral = None
+        self._error = None
 
     def device_changed(self, path, before, after):
         if after.get("Address") not in self._paired_hosts:
@@ -169,3 +217,31 @@ class Connections:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+
+async def _devices(bus, address):
+    """(path, properties) of bluetoothd's device objects with this address."""
+    found = []
+    for path, interfaces in (await bluez.managed_objects(bus)).items():
+        if bluez.DEVICE in interfaces:
+            props = bluez.device_properties(interfaces[bluez.DEVICE])
+            if props.get("Address") == address:
+                found.append((path, props))
+    return found
+
+
+async def _device_paths(bus, address):
+    return [path for path, _props in await _devices(bus, address)]
+
+
+async def _unpaired(address):
+    """Whether bluetoothd is running with its adapter and no longer holds a pairing with the device.
+
+    Steam scans all the time, so a removed device can already be back as an unpaired object.
+    """
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    try:
+        await bluez.find_adapter(bus)
+        return not any(props.get("Paired") for _path, props in await _devices(bus, address))
+    finally:
+        bus.disconnect()

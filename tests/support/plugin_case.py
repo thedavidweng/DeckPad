@@ -1,6 +1,7 @@
 """The plugin backend driven the way Decky and the QAM panel drive it, against a private system bus with a
 fake org.bluez on it."""
 
+import asyncio
 import importlib
 import unittest
 
@@ -37,6 +38,8 @@ class PluginTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.plugin._unload()
         if self.bluez:
+            # Unload sends Disconnect without waiting; let the fake answer it before it leaves the bus.
+            await asyncio.sleep(0.02)
             await self.bluez.stop()
 
     async def state(self):

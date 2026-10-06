@@ -42,6 +42,14 @@ class FakeController:
         # Read-write, so writing never blocks for want of a reader and DeckPad never sees end-of-file.
         self._writer = os.open(self.node, os.O_RDWR | os.O_NONBLOCK)
 
+    def unplug(self):
+        """The raw controller interface goes away (the controller resets or its driver is unbound)."""
+        shutil.rmtree(os.path.join(self.hidraw_class, "hidraw2"))
+        os.unlink(self.node)
+        if self._writer is not None:
+            os.close(self._writer)
+            self._writer = None
+
     def send(self, report):
         os.write(self._writer, report)
 

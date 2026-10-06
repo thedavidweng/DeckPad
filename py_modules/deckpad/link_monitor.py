@@ -77,6 +77,10 @@ class LinkMonitor:
             self._sock = None
         self._links.clear()
 
+    def intervals(self):
+        """Connection intervals of the current Host links, in seconds."""
+        return sorted(self._links.values())
+
     def report_interval(self):
         """Seconds between Gamepad Reports that the slowest Connected Host's link can carry."""
         if not self._links:

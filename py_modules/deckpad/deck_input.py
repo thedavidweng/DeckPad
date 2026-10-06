@@ -42,16 +42,27 @@ def find_controller_node():
 
 
 class DeckInput:
-    def __init__(self, send, report_interval):
+    def __init__(self, send, report_interval, on_change=None):
         """`send(report)` delivers one Gamepad Report and returns whether a Host received it.
 
         `report_interval()` is the time between reports the link can carry right now (ADR-0008).
+        `on_change()` is called when the controller becomes readable or stops being readable.
         """
         self._pacer = ReportPacer(send, report_interval)
+        self._on_change = on_change
         self._fd = None
         self._retry = None
         self._running = False
         self._missing_logged = False
+        self._available = None
+        # The last reason the controller could not be opened, for diagnostics.
+        self.problem = None
+
+    @property
+    def available(self):
+        """Whether Deck Controls are being read. A controller that just went away counts as available
+        until reopening it fails, because it usually comes straight back after a reset."""
+        return bool(self._available)
 
     def start(self):
         self._running = True
@@ -75,16 +86,33 @@ class DeckInput:
             try:
                 self._fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
             except OSError as e:
-                log.warning("Could not open the Deck's controller at %s: %r", path, e)
+                if self.problem != "open %s: %r" % (path, e):
+                    log.warning("Could not open the Deck's controller at %s: %r", path, e)
+                self.problem = "open %s: %r" % (path, e)
             else:
                 asyncio.get_running_loop().add_reader(self._fd, self._readable)
                 self._missing_logged = False
+                self.problem = None
                 log.info("Reading Deck Controls from %s", path)
+                self._set_available(True)
                 return
-        elif not self._missing_logged:
-            log.warning("The Deck's controller is not available; retrying")
-            self._missing_logged = True
+        else:
+            self.problem = "no 28DE:1205 raw controller interface in %s" % HIDRAW_CLASS
+            if not self._missing_logged:
+                log.warning("The Deck's controller is not available; retrying")
+                self._missing_logged = True
         self._retry = asyncio.get_running_loop().call_later(REOPEN_DELAY, self._open)
+        self._set_available(False)
+
+    def _set_available(self, available):
+        if available == self._available:
+            return
+        self._available = available
+        if self._on_change is not None:
+            try:
+                self._on_change()
+            except Exception:
+                log.exception("Controller availability handler failed")
 
     def _close(self):
         if self._fd is not None:

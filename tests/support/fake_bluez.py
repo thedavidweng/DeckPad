@@ -46,6 +46,8 @@ class _Adapter(ServiceInterface):
     @method()
     async def RemoveDevice(self, device: "o"):
         self._bluez.calls.append(("RemoveDevice", device))
+        if self._bluez.reject_remove_device:
+            raise DBusError(_FAILED, self._bluez.reject_remove_device)
         if device not in self._bluez.devices:
             raise DBusError(_DOES_NOT_EXIST, "Does Not Exist")
         await self._bluez.remove_device(device)
@@ -58,14 +60,14 @@ class _Marker(ServiceInterface):
 class _Device(ServiceInterface):
     """A remote device as bluetoothd sees it (org.bluez.Device1)."""
 
-    def __init__(self, bluez, path, address, name):
+    def __init__(self, bluez, path, address, name, paired=False):
         super().__init__("org.bluez.Device1")
         self._bluez = bluez
         self.path = path
         self.address = address
         self.alias = name
         self.connected = False
-        self.paired = False
+        self.paired = paired
 
     def update(self, **changes):
         names = {"connected": "Connected", "paired": "Paired", "alias": "Alias"}
@@ -74,7 +76,9 @@ class _Device(ServiceInterface):
         changed = {names[k]: v for k, v in changes.items()}
         if changes.get("paired"):
             changed["Bonded"] = True
-        self.emit_properties_changed(changed)
+        # A call that arrives while bluetoothd is going away changes state but announces nothing.
+        if self._bluez.bus is not None:
+            self.emit_properties_changed(changed)
 
     @dbus_property(access=PropertyAccess.READ)
     def Address(self) -> "s":
@@ -104,6 +108,8 @@ class _Device(ServiceInterface):
     def Disconnect(self):
         self._bluez.disconnect_requests.append(self.path)
         self._bluez.calls.append(("Disconnect", self.path))
+        if self._bluez.reject_disconnect:
+            raise DBusError(_FAILED, self._bluez.reject_disconnect)
         if self.connected:
             self.update(connected=False)
 
@@ -120,6 +126,8 @@ class FakeBluez:
         self.hang_unregister = False
         self.reject_application = None
         self.reject_advertisement = None
+        self.reject_remove_device = None
+        self.reject_disconnect = None
         self.devices = {}
         self.disconnect_requests = []
         # Ordered record of calls that matter for teardown ordering, e.g. ("Disconnect", path).
@@ -290,6 +298,37 @@ class FakeBluez:
         if reply.message_type == MessageType.ERROR:
             raise RuntimeError("%s: %s" % (reply.error_name, reply.body))
 
+    def set_powered(self, powered):
+        """The adapter is switched off or on (Steam's Bluetooth toggle). Switching off drops every link."""
+        if not powered:
+            for device in self.devices.values():
+                if device.connected:
+                    device.update(connected=False)
+        self._adapter.powered = powered
+        self._adapter.emit_properties_changed({"Powered": powered})
+
+    async def stop_service(self):
+        """bluetoothd exits (`systemctl stop bluetooth`): it powers the adapter off, unregisters every
+        device object while keeping the bonds on disk, and leaves the bus. Every registration is lost."""
+        if self._adapter.powered:
+            self.set_powered(False)
+        for path, device in self.devices.items():
+            self.bus.unexport(path, device)
+        await self.stop()
+        self.agents.clear()
+        self.applications.clear()
+        self.advertisements.clear()
+        self.default_agents = [STEAM_AGENT]
+        self.devices = {
+            path: _Device(self, path, d.address, d.alias, paired=d.paired) for path, d in self.devices.items() if d.paired
+        }
+        self._adapter = _Adapter(self, True)
+
+    async def restart(self):
+        """`systemctl restart bluetooth` underneath DeckPad. Paired devices come back from disk, unconnected."""
+        await self.stop_service()
+        await self.start()
+
     async def start(self):
         self.bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
         self.bus.export("/org/bluez", _Marker("org.bluez.AgentManager1"))
@@ -297,6 +336,8 @@ class FakeBluez:
             self.bus.export(ADAPTER_PATH, self._adapter)
             self.bus.export(ADAPTER_PATH, _Marker("org.bluez.GattManager1"))
             self.bus.export(ADAPTER_PATH, _Marker("org.bluez.LEAdvertisingManager1"))
+        for path, device in self.devices.items():
+            self.bus.export(path, device)
         self.bus.add_message_handler(self._handle)
         await self.bus.call(
             Message(
@@ -322,9 +363,9 @@ class FakeBluez:
 
     async def stop(self):
         if self.bus:
-            self.bus.disconnect()
-            await self.bus.wait_for_disconnect()
-            self.bus = None
+            bus, self.bus = self.bus, None
+            bus.disconnect()
+            await bus.wait_for_disconnect()
 
     def _handle(self, msg):
         if msg.message_type == MessageType.SIGNAL and msg.member == "NameOwnerChanged":

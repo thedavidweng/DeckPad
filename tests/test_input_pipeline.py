@@ -13,6 +13,7 @@ from deckpad.link_monitor import FALLBACK_REPORT_INTERVAL
 from tests.support.deck_state import deck_state_report
 from tests.support.fake_controller import FakeController
 from tests.support.plugin_case import PluginTestCase
+from tests.test_connections import when
 
 AT_REST = bytes.fromhex("00800080008000800000000000000000")
 A_HELD = bytes.fromhex("00800080008000800000000000010000")
@@ -164,8 +165,44 @@ class ReadingTheController(InputCase):
         self.assertEqual(self.controller.opened_nodes(), {self.controller.node})
 
 
+    async def test_the_panel_shows_the_controls_are_being_read(self):
+        await self.plugin.set_controller_mode(True)
+        await eventually(self.controller.is_open)
+
+        state = await self.state()
+
+        self.assertEqual(state["controls"], {"available": True, "message": None})
+
+    async def test_a_controller_that_goes_away_is_reported_to_the_panel(self):
+        await self.plugin.set_controller_mode(True)
+        await eventually(self.controller.is_open)
+
+        self.controller.unplug()
+        state = await when(self.plugin, lambda s: not s["controls"]["available"])
+
+        self.assertFalse(state["controls"]["available"])
+        self.assertIn("cannot read the Deck's controls", state["controls"]["message"])
+
+    async def test_without_controller_mode_nothing_is_reported(self):
+        self.assertIsNone((await self.state())["controls"])
+
+
 class AControllerThatAppearsLater(InputCase):
     plugged_in = False
+
+    async def test_the_panel_says_the_controls_cannot_be_read(self):
+        state = await self.plugin.set_controller_mode(True)
+
+        self.assertFalse(state["controls"]["available"])
+        self.assertIn("keeps trying", state["controls"]["message"])
+
+    async def test_the_message_clears_once_it_appears(self):
+        await self.plugin.set_controller_mode(True)
+
+        self.controller.plug_in()
+        state = await when(self.plugin, lambda s: s["controls"]["available"])
+
+        self.assertTrue(state["controls"]["available"])
 
     async def test_controller_mode_turns_on_without_it(self):
         state = await self.plugin.set_controller_mode(True)

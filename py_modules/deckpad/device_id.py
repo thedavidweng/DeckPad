@@ -163,3 +163,16 @@ def restore_leftover(pid, modalias, replacement, proc="/proc"):
         return False
     Override(process, replacements[0], original, new).restore()
     return True
+
+
+def current(pid, modalias, replacement, proc="/proc"):
+    """Which DeviceID bluetoothd reports right now: "controller_identity", "bluez", or None if unknown."""
+    scan = _scan(pid, modalias, replacement, proc)
+    if scan is None:
+        return None
+    _process, _original, _new, originals, replacements = scan
+    if len(replacements) == 1 and not originals:
+        return "controller_identity"
+    if len(originals) == 1 and not replacements:
+        return "bluez"
+    return None

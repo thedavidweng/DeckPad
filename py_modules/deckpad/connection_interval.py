@@ -152,6 +152,15 @@ class ShorterInterval:
             request.restore()
 
 
+def current(index, open_socket=open_mgmt_socket):
+    """The adapter's default LE connection interval range (min, max) in 1.25 ms units. Needs root."""
+    mgmt = _Mgmt(open_socket)
+    try:
+        return mgmt.read_conn_interval(index)
+    finally:
+        mgmt.close()
+
+
 def restore_leftover(state_path, open_socket=open_mgmt_socket):
     """At backend start, undo a request that a killed DeckPad process left in place. Returns whether it did."""
     try:

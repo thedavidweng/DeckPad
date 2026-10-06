@@ -10,14 +10,21 @@ import {
 } from "@decky/ui";
 import { addEventListener, callable, definePlugin, removeEventListener } from "@decky/api";
 import { useEffect, useState } from "react";
+import { Troubleshooting } from "./troubleshooting";
 import { FaGamepad } from "react-icons/fa";
 
-type Status = "off" | "starting" | "on" | "stopping";
+type Status = "off" | "starting" | "on" | "stopping" | "recovering";
 
 interface ControllerModeError {
   code: string;
+  title: string;
   message: string;
   detail: string | null;
+}
+
+interface ControlsState {
+  available: boolean;
+  message: string | null;
 }
 
 type PairingStatus = "closed" | "discoverable" | "pairing" | "paired" | "failed";
@@ -45,6 +52,7 @@ interface ControllerModeState {
   pairing: PairingState;
   hosts: PairedHost[];
   connection: ConnectionStatus;
+  controls: ControlsState | null;
 }
 
 const STATE_EVENT = "controller_mode_state";
@@ -63,6 +71,7 @@ const DESCRIPTIONS: Record<Status, string> = {
   starting: "Turning on…",
   on: "This Deck is acting as a Bluetooth controller. Turn off to return to normal.",
   stopping: "Turning off…",
+  recovering: "Bluetooth stopped. Controller Mode resumes as soon as it is back.",
 };
 
 function useControllerModeState(): ControllerModeState | null {
@@ -169,7 +178,11 @@ function PairingRows({ pairing, onRequestError }: { pairing: PairingState; onReq
       return (
         <>
           <PanelSectionRow>
-            <Field label="Pairing did not finish" description={pairing.error?.message} focusable />
+            <Field
+              label={pairing.error?.title ?? "Pairing did not finish"}
+              description={pairing.error?.message}
+              focusable
+            />
           </PanelSectionRow>
           {action("Try Again", true)}
         </>
@@ -309,7 +322,7 @@ function Content() {
   }
 
   const busy = state.status === "starting" || state.status === "stopping";
-  const checked = state.status === "on" || state.status === "starting";
+  const checked = state.status === "on" || state.status === "starting" || state.status === "recovering";
 
   const onChange = async (enabled: boolean) => {
     setRequestError(null);
@@ -336,9 +349,14 @@ function Content() {
         </PanelSectionRow>
         {state.status === "on" && <ConnectionRows state={state} names={names} onRequestError={onRequestError} />}
         {state.status === "on" && <PairingRows pairing={state.pairing} onRequestError={onRequestError} />}
+        {state.status === "on" && state.controls && !state.controls.available && (
+          <PanelSectionRow>
+            <Field label="No input from the Deck's controls" description={state.controls.message} focusable />
+          </PanelSectionRow>
+        )}
         {state.error && (
           <PanelSectionRow>
-            <Field label="Could not turn on Controller Mode" description={state.error.message} focusable />
+            <Field label={state.error.title} description={state.error.message} focusable />
           </PanelSectionRow>
         )}
         {requestError && (
@@ -350,6 +368,7 @@ function Content() {
       {(state.status === "on" || state.status === "off") && (
         <PairedHostRows state={state} names={names} onRequestError={onRequestError} />
       )}
+      <Troubleshooting />
     </>
   );
 }
