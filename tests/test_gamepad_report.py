@@ -8,7 +8,7 @@ from 1 (up) with 0 for neutral, and buttons sit in bytes 13-15.
 import struct
 import unittest
 
-from deckpad.gamepad_report import gamepad_report
+from deckpad.gamepad_report import describe, gamepad_report
 
 from tests.support.deck_state import deck_state_report
 
@@ -150,6 +150,56 @@ class ReportsThatAreNotDeckState(unittest.TestCase):
 
     def test_short_reads_are_ignored(self):
         self.assertIsNone(gamepad_report(deck_state_report("A")[:40]))
+
+
+class TheControllerScreensDrawing(unittest.TestCase):
+    """`describe` turns the report the Host gets into what the Controller Screen lights up."""
+
+    def drawn(self, *buttons, **axes):
+        return describe(gamepad_report(deck_state_report(*buttons, **axes)))
+
+    def test_nothing_held_draws_nothing_lit_and_sticks_centred(self):
+        self.assertEqual(
+            self.drawn(),
+            {"buttons": [], "left_stick": [0, 0], "right_stick": [0, 0], "left_trigger": 0, "right_trigger": 0},
+        )
+
+    def test_each_button_the_host_gets_is_named(self):
+        expected = {
+            "A": "a",
+            "B": "b",
+            "X": "x",
+            "Y": "y",
+            "LB": "lb",
+            "RB": "rb",
+            "VIEW": "view",
+            "MENU": "menu",
+            "STEAM": "guide",
+            "L3": "l3",
+            "R3": "r3",
+            "QAM": "share",
+        }
+        for deck_button, name in expected.items():
+            with self.subTest(deck_button):
+                self.assertEqual(self.drawn(deck_button)["buttons"], [name])
+
+    def test_deck_only_controls_light_nothing(self):
+        self.assertEqual(self.drawn("L4", "R5", "LEFT_PAD_CLICK")["buttons"], [])
+
+    def test_a_diagonal_lights_both_d_pad_directions(self):
+        self.assertEqual(self.drawn("UP", "LEFT")["buttons"], ["dpad_up", "dpad_left"])
+
+    def test_sticks_run_from_minus_one_to_one_with_y_pointing_down(self):
+        drawn = self.drawn(lx=-32768, ly=32767, rx=32767, ry=-32768)
+
+        self.assertEqual(drawn["left_stick"], [-1, -1])
+        self.assertEqual(drawn["right_stick"], [1, 1])
+
+    def test_triggers_run_from_zero_to_one(self):
+        drawn = self.drawn(lt=0x7FFF, rt=0x3FFF)
+
+        self.assertEqual(drawn["left_trigger"], 1)
+        self.assertAlmostEqual(drawn["right_trigger"], 0.5, places=2)
 
 
 if __name__ == "__main__":

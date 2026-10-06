@@ -17,6 +17,7 @@ from . import connection_interval, errors
 from .bluetooth_watch import BluetoothWatch
 from .connections import Connections
 from .deck_controls import DeckControls
+from .gamepad_preview import GamepadPreview
 from .link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 from .hosts import PairedHosts
 from .pairing import PairingMode
@@ -56,7 +57,10 @@ class ControllerMode:
         paired_hosts=None,
         interval_state_path=None,
         settings=None,
+        on_gamepad_report=None,
     ):
+        """`on_gamepad_report(described_report)`, a coroutine function, gets the Gamepad Reports going to the
+        Host while a Controller Screen watches them (see `watch_gamepad`)."""
         self._on_change = on_change
         self._interval_state_path = interval_state_path
         self._paired_hosts = paired_hosts if paired_hosts is not None else PairedHosts()
@@ -77,6 +81,7 @@ class ControllerMode:
         self._reports = _ReportCount()
         self._tasks = Tasks()
         self._closed = False
+        self._preview = GamepadPreview(on_gamepad_report or _ignore)
         self._pairing = PairingMode(on_change=self._pairing_changed, on_paired=self._paired_hosts.add)
         self._connections = Connections(self._paired_hosts, self._pairing, on_change=self._changed)
 
@@ -145,6 +150,11 @@ class ControllerMode:
         self._settings.set_quit_combo(enabled)
         await self._changed()
         return self.snapshot()
+
+    def watch_gamepad(self, enabled):
+        """Whether the Gamepad Reports going to the Host are forwarded to `on_gamepad_report`."""
+        if not self._closed:
+            self._preview.watch(enabled)
 
     def _quit_combo_pressed(self):
         if self._status == ON:
@@ -228,6 +238,7 @@ class ControllerMode:
         """
         self._closed = True
         self._tasks.cancel_all()
+        self._preview.close()
         self._end_session()
         self._status = OFF
         log.info("Controller Mode off (unload)")
@@ -325,6 +336,7 @@ class ControllerMode:
         self._pairing.detach()
         self._connections.detach()
         self._stop_deck_controls()
+        self._preview.reset()
         if self._watch is not None:
             self._watch.stop()
             self._watch = None
@@ -408,6 +420,7 @@ class ControllerMode:
         def send(report):
             delivered = peripheral.send_gamepad_report(report)
             self._reports.count(delivered)
+            self._preview.show(report)
             return delivered
 
         self._deck_controls = DeckControls(
@@ -451,6 +464,10 @@ class ControllerMode:
             await self._on_change(self.snapshot())
         except Exception as e:
             log.warning("Could not publish Controller Mode state: %r", e)
+
+
+async def _ignore(_):
+    pass
 
 
 class _Listeners:

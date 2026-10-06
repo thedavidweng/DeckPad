@@ -82,6 +82,54 @@ def gamepad_report(deck_state):
     )
 
 
+_BUTTON_NAMES = (
+    (0, 0x01, "a"),
+    (0, 0x02, "b"),
+    (0, 0x08, "x"),
+    (0, 0x10, "y"),
+    (0, 0x40, "lb"),
+    (0, 0x80, "rb"),
+    (1, 0x04, "view"),
+    (1, 0x08, "menu"),
+    (1, 0x10, "guide"),
+    (1, 0x20, "l3"),
+    (1, 0x40, "r3"),
+    (2, 0x01, "share"),
+)
+
+# Hat position -> D-pad directions held.
+_HAT_DIRECTIONS = {
+    0: (),
+    1: ("up",),
+    2: ("up", "right"),
+    3: ("right",),
+    4: ("down", "right"),
+    5: ("down",),
+    6: ("down", "left"),
+    7: ("left",),
+    8: ("up", "left"),
+}
+
+
+def describe(report):
+    """A Gamepad Report as the Controller Screen draws it: the names of the buttons and D-pad directions
+    held, sticks from -1 to 1 with Y pointing down, and triggers from 0 to 1."""
+    lx, ly, rx, ry, lt, rt, hat, *buttons = struct.unpack("<HHHHHHBBBB", report)
+    held = [name for index, mask, name in _BUTTON_NAMES if buttons[index] & mask]
+    held.extend("dpad_" + direction for direction in _HAT_DIRECTIONS.get(hat, ()))
+    return {
+        "buttons": held,
+        "left_stick": [_unit(lx), _unit(ly)],
+        "right_stick": [_unit(rx), _unit(ry)],
+        "left_trigger": round(lt / _TRIGGER_MAX, 3),
+        "right_trigger": round(rt / _TRIGGER_MAX, 3),
+    }
+
+
+def _unit(axis):
+    return round(max(axis - 0x8000, -0x7FFF) / 0x7FFF, 3)
+
+
 def _axis(value):
     return min(max(value + 0x8000, 0), 0xFFFF)
 

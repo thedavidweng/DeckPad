@@ -275,6 +275,86 @@ class TheQuitCombo(InputCase):
         return self.plugin._controller_mode.snapshot()["status"]
 
 
+class TheControllerScreensPreview(InputCase):
+    """While the Controller Screen watches, it gets the Gamepad Reports going to the Host (ADR-0013)."""
+
+    def previews(self):
+        return [args[0] for event, *args in self.decky.events if event == "gamepad_report"]
+
+    def lit(self):
+        previews = self.previews()
+        return previews[-1]["buttons"] if previews else None
+
+    async def test_a_pressed_button_lights_up(self):
+        await self.connect_host()
+        await self.plugin.watch_gamepad(True)
+
+        lit = await self.press(deck_state_report("A"), until=lambda: self.lit() == ["a"])
+
+        self.assertTrue(lit)
+
+    async def test_it_works_before_any_host_is_connected(self):
+        await self.plugin.set_controller_mode(True)
+        await self.plugin.watch_gamepad(True)
+
+        lit = await self.press(deck_state_report("B"), until=lambda: self.lit() == ["b"])
+
+        self.assertTrue(lit)
+
+    async def test_watching_starts_with_the_current_state(self):
+        await self.plugin.watch_gamepad(True)
+
+        self.assertTrue(await eventually(lambda: self.lit() == []))
+
+    async def test_nothing_is_forwarded_while_nobody_watches(self):
+        await self.connect_host()
+
+        await self.press(deck_state_report("A"), until=lambda: A_HELD in self.bluez.gamepad_reports())
+
+        self.assertEqual(self.previews(), [])
+
+    async def test_it_stops_when_the_screen_stops_watching(self):
+        await self.connect_host()
+        await self.plugin.watch_gamepad(True)
+        await self.press(deck_state_report("A"), until=lambda: self.lit() == ["a"])
+
+        await self.plugin.watch_gamepad(False)
+        await asyncio.sleep(0.05)
+        seen = len(self.previews())
+        await self.press(deck_state_report("X"), timeout=0.2)
+
+        self.assertEqual(len(self.previews()), seen)
+
+    async def test_it_is_paced_well_below_the_controllers_rate(self):
+        await self.plugin.set_controller_mode(True)
+        await self.plugin.watch_gamepad(True)
+
+        # Alternating presses at 250 Hz for half a second: 125 changes.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 0.5
+        held = False
+        while loop.time() < deadline:
+            held = not held
+            self.controller.send(deck_state_report("A") if held else deck_state_report())
+            await asyncio.sleep(0.004)
+
+        self.assertGreater(len(self.previews()), 5)
+        self.assertLessEqual(len(self.previews()), 0.5 * 30 + 3)
+
+    async def test_the_quit_combo_shows_nothing_held(self):
+        await self.connect_host()
+        await self.plugin.watch_gamepad(True)
+
+        await self.press(deck_state_report(*QUIT_COMBO), until=lambda: self.plugin_status() != "on")
+        await when(self.plugin, lambda s: s["status"] == "off")
+
+        self.assertTrue(await eventually(lambda: self.lit() == []))
+        self.assertNotIn(["lb", "rb", "view", "menu"], self.previews())
+
+    def plugin_status(self):
+        return self.plugin._controller_mode.snapshot()["status"]
+
+
 class AControllerThatAppearsLater(InputCase):
     plugged_in = False
 

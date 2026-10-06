@@ -54,6 +54,39 @@ export const forgetHost = callable<[address: string], ControllerModeState>("forg
 export const allowReconnect = callable<[], ControllerModeState>("allow_reconnect");
 export const setQuitCombo = callable<[enabled: boolean], ControllerModeState>("set_quit_combo");
 
+// One Gamepad Report going to the Host, as the backend describes it for drawing (ADR-0013). Sticks run
+// from -1 to 1 with Y pointing down; triggers from 0 to 1.
+export interface GamepadPreview {
+  buttons: string[];
+  left_stick: [number, number];
+  right_stick: [number, number];
+  left_trigger: number;
+  right_trigger: number;
+}
+
+const GAMEPAD_EVENT = "gamepad_report";
+const watchGamepad = callable<[enabled: boolean], void>("watch_gamepad");
+
+// The backend only forwards reports while someone watches, so keep watching just as long as `active`.
+export function useGamepadPreview(active: boolean): GamepadPreview | null {
+  const [report, setReport] = useState<GamepadPreview | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setReport(null);
+      return;
+    }
+    const listener = addEventListener<[GamepadPreview]>(GAMEPAD_EVENT, setReport);
+    watchGamepad(true).catch(() => {});
+    return () => {
+      removeEventListener(GAMEPAD_EVENT, listener);
+      watchGamepad(false).catch(() => {});
+    };
+  }, [active]);
+
+  return report;
+}
+
 export function useControllerModeState(): ControllerModeState | null {
   const [state, setState] = useState<ControllerModeState | null>(null);
 

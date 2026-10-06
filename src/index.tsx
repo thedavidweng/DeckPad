@@ -32,6 +32,7 @@ import {
   ControllerScreen,
   closeControllerScreen,
   openControllerScreen,
+  restoreSteamMenus,
   useControllerScreenOpen,
 } from "./controller_screen";
 
@@ -354,6 +355,7 @@ export default definePlugin(() => {
     content: <Content />,
     icon: <FaGamepad />,
     onDismount() {
+      restoreSteamMenus();
       routerHook.removeRoute(CONTROLLER_SCREEN_ROUTE);
     },
   };

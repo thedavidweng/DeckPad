@@ -167,9 +167,13 @@ suspend/resume. These are on the manual test list; see
 - **Steam still sees the Deck's controls.** In Gaming Mode, whatever has focus on the Deck (the library,
   the Quick Access menu, or a running game) also reacts to the buttons, and the Steam and `…` buttons
   still open Steam's menus. While a Host is connected, select **Open Controller Screen** in the panel:
-  it fills the screen and holds Steam's focus so the library behind it does not move. To leave it,
-  press `…` and select **Close Controller Screen**, press the Steam button, or hold the Quit Combo
-  (which also turns Controller Mode off). Do not run a game on the Deck while using it as a
+  it fills the screen and holds Steam's focus so the library behind it does not move. It draws an Xbox
+  controller (Steam's own drawing) and lights up what the Host is receiving: buttons, D-pad, sticks and
+  how far each trigger is pulled. While the Quit Combo is on, the screen also stops the Steam and `…`
+  buttons from opening Steam's menus, so they only go to the Host (as Xbox and Share). To leave, hold the
+  Quit Combo (which also turns Controller Mode off) or tap **Close** on the touchscreen. With the Quit
+  Combo turned off, the Steam and `…` buttons open Steam's menus as usual: press `…` and select **Close
+  Controller Screen**, or press the Steam button. Do not run a game on the Deck while using it as a
   controller. Whether the screen absorbs every press, and whether these ways out work, has not been
   checked by a person since the first build on the Deck swallowed the Steam and `…` buttons.
 - **Not sent:** rear buttons, trackpads, gyro, and rumble from the Host.
