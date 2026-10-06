@@ -124,6 +124,34 @@ def request(index, state_path, open_socket=open_mgmt_socket):
     return IntervalRequest(index, previous if previous != REQUESTED else None, state_path, open_socket)
 
 
+class ShorterInterval:
+    """The request, held only while Pairing Mode is not accepting new Hosts.
+
+    On the tested Host the switch to the shorter interval sometimes dropped the link, and a drop
+    during pairing cancels the pairing. Paired Hosts reconnecting recover by reconnecting again.
+    """
+
+    def __init__(self, index, state_path, open_socket=open_mgmt_socket):
+        self._index = index
+        self._state_path = state_path
+        self._open_socket = open_socket
+        self._request = None
+        self._requested = False
+
+    def update(self, pairing):
+        if pairing and self._requested:
+            self.close()
+        elif not pairing and not self._requested:
+            self._requested = True
+            self._request = request(self._index, self._state_path, open_socket=self._open_socket)
+
+    def close(self):
+        self._requested = False
+        request, self._request = self._request, None
+        if request is not None:
+            request.restore()
+
+
 def restore_leftover(state_path, open_socket=open_mgmt_socket):
     """At backend start, undo a request that a killed DeckPad process left in place. Returns whether it did."""
     try:

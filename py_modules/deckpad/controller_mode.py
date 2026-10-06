@@ -48,7 +48,7 @@ class ControllerMode:
         self._peripheral = None
         self._input = None
         self._link = None
-        self._interval_request = None
+        self._shorter_interval = None
         self._closed = False
         self._pairing = PairingMode(on_change=self._pairing_changed, on_paired=self._paired_hosts.add)
         self._connections = Connections(self._paired_hosts, self._pairing, on_change=self._changed)
@@ -80,6 +80,8 @@ class ControllerMode:
         async with self._lock:
             if self._status == ON:
                 if enabled:
+                    # Before the advertisement goes up, so a Host connecting to pair keeps its interval.
+                    self._update_interval(pairing=True)
                     await self._pairing.open()
                 else:
                     await self._pairing.close()
@@ -184,6 +186,7 @@ class ControllerMode:
         await self._set_status(OFF)
 
     async def _pairing_changed(self):
+        self._update_interval(pairing=self._pairing.accepting)
         # Once Pairing Mode stops accepting, Paired Hosts get their reconnect advertisement back.
         await self._connections.reconcile()
         await self._changed()
@@ -194,7 +197,8 @@ class ControllerMode:
         # Both need root: MGMT configuration commands and HCI event filters are privileged.
         if os.geteuid() == 0 and index is not None:
             if self._interval_state_path:
-                self._interval_request = connection_interval.request(index, self._interval_state_path)
+                self._shorter_interval = connection_interval.ShorterInterval(index, self._interval_state_path)
+                self._update_interval(pairing=False)
             self._link = LinkMonitor(index)
             self._link.start()
             report_interval = self._link.report_interval
@@ -209,9 +213,13 @@ class ControllerMode:
         if self._link is not None:
             self._link.stop()
             self._link = None
-        if self._interval_request is not None:
-            self._interval_request.restore()
-            self._interval_request = None
+        if self._shorter_interval is not None:
+            self._shorter_interval.close()
+            self._shorter_interval = None
+
+    def _update_interval(self, pairing):
+        if self._shorter_interval is not None:
+            self._shorter_interval.update(pairing)
 
     async def _set_status(self, status):
         self._status = status

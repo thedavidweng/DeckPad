@@ -69,6 +69,51 @@ class RequestingAShorterInterval(unittest.TestCase):
         self.assertFalse(os.path.exists(self.state_path))
 
 
+class NotWhilePairing(unittest.TestCase):
+    """A Host that switches interval in the middle of pairing can drop the link and cancel the pairing."""
+
+    def setUp(self):
+        self.kernel = FakeMgmtKernel(index=0, conn_interval=(24, 40))
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.shorter = connection_interval.ShorterInterval(
+            0, os.path.join(tmp.name, "connection_interval.json"), open_socket=self.kernel.open_socket
+        )
+
+    def test_paired_hosts_reconnecting_are_asked_for_15_to_20_ms(self):
+        self.shorter.update(pairing=False)
+
+        self.assertEqual(self.kernel.conn_interval, REQUESTED)
+
+    def test_hosts_connecting_to_pair_keep_their_own_interval(self):
+        self.shorter.update(pairing=False)
+
+        self.shorter.update(pairing=True)
+
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+
+    def test_the_request_returns_when_pairing_mode_closes(self):
+        self.shorter.update(pairing=True)
+        self.shorter.update(pairing=False)
+
+        self.assertEqual(self.kernel.conn_interval, REQUESTED)
+
+    def test_closing_puts_the_adapters_range_back(self):
+        self.shorter.update(pairing=False)
+
+        self.shorter.close()
+
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+
+    def test_repeated_updates_do_not_touch_the_adapter_again(self):
+        self.shorter.update(pairing=False)
+        opened = self.kernel.sockets_opened
+
+        self.shorter.update(pairing=False)
+
+        self.assertEqual(self.kernel.sockets_opened, opened)
+
+
 class AfterThePluginWasKilled(unittest.TestCase):
     def setUp(self):
         self.kernel = FakeMgmtKernel(index=0, conn_interval=(24, 40))
