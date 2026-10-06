@@ -98,6 +98,11 @@ async def disconnect_device(bus, device_path):
     await call(bus, device_path, DEVICE, "Disconnect")
 
 
+async def remove_device(bus, adapter_path, device_path):
+    """Remove a device and its bond from the adapter, disconnecting it first if needed."""
+    await call(bus, adapter_path, ADAPTER, "RemoveDevice", "o", (device_path,))
+
+
 def send_disconnect_device(bus, device_path):
     """Ask bluetoothd to drop a device's link without waiting for the reply.
 

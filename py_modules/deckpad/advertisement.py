@@ -1,4 +1,5 @@
-"""The LE advertisement that lets a Host find the Deck in its Bluetooth list during Pairing Mode."""
+"""The LE advertisement that lets a Host find the Deck in its Bluetooth list during Pairing Mode, or lets a
+Paired Host reconnect outside it."""
 
 from dbus_fast.service import PropertyAccess, ServiceInterface, dbus_property, method
 
@@ -8,15 +9,19 @@ GAMEPAD_APPEARANCE = 0x03C4
 
 
 class Advertisement(ServiceInterface):
-    """A connectable, discoverable advertisement for the HID service.
+    """A connectable advertisement for the HID service, discoverable only during Pairing Mode.
 
     Discoverability comes from this advertisement alone (LE General Discoverable flag). Adapter1's
     Discoverable property is never touched: it would make the Deck discoverable over Classic too.
+    Without the flag, Hosts leave the Deck out of their scan lists, but a Paired Host that recognises
+    the Deck's address still connects to it. BlueZ reads the properties when the advertisement is
+    registered, so change `discoverable` only while it is not registered.
     """
 
-    def __init__(self, local_name):
+    def __init__(self, local_name, discoverable=True):
         super().__init__("org.bluez.LEAdvertisement1")
         self._local_name = local_name
+        self.discoverable = discoverable
 
     @dbus_property(access=PropertyAccess.READ)
     def Type(self) -> "s":
@@ -36,7 +41,7 @@ class Advertisement(ServiceInterface):
 
     @dbus_property(access=PropertyAccess.READ)
     def Discoverable(self) -> "b":
-        return True
+        return self.discoverable
 
     @method()
     def Release(self):
