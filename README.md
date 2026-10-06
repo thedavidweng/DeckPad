@@ -114,9 +114,11 @@ known to work.
 | Store package (metadata, licenses, files the store CI zips) | Yes | The store-shaped zip was installed and smoke-tested |
 
 Not yet checked on hardware: how the QAM panel looks (agents drove it through the plugin API only),
-whether Steam's UI on the Deck reacts to presses during Controller Mode, Bluetooth headphones or other
-Bluetooth devices on the Deck while a Host is connected, and suspend/resume. These are on the manual
-test list.
+whether Steam's UI on the Deck reacts to presses during Controller Mode and whether the Controller
+Screen stops it (its route is registered on the Deck, but it has not been opened in Gaming Mode),
+Bluetooth headphones or other Bluetooth devices on the Deck while a Host is connected, suspend/resume,
+and uninstalling from Decky's settings. These are on the manual test list; see
+[Verification status](docs/verification.md).
 
 ### Hosts
 
@@ -158,7 +160,11 @@ test list.
   again.
 - **Steam still sees the Deck's controls.** In Gaming Mode, whatever has focus on the Deck (the library,
   the Quick Access menu, or a running game) also reacts to the buttons, and the Steam and `…` buttons
-  still open Steam's menus. Do not run a game on the Deck while using it as a controller.
+  still open Steam's menus. While a Host is connected, select **Open Controller Screen** in the panel:
+  it fills the screen and holds Steam's focus so the library behind it does not move. To leave it,
+  press `…` and select **Close Controller Screen**, or press the Steam button. Do not run a game on the
+  Deck while using it as a controller. Whether the screen absorbs every press has not been checked by a
+  person yet.
 - **Not sent:** rear buttons, trackpads, gyro, and rumble from the Host.
 - **Paired Hosts appear in Steam's Bluetooth settings**, because they are ordinary Bluetooth pairings.
   Removing one there also removes it from DeckPad.
@@ -167,7 +173,8 @@ test list.
   input after upgrading. Remove the Deck on the Host, select **Forget** in DeckPad, and pair again once.
   Restarting the Deck also clears it.
 - **Pending checks:** suspend/resume with a Host connected, Bluetooth audio on the Deck while a Host is
-  connected, and non-Linux Hosts have not been tested.
+  connected, the Controller Screen in Gaming Mode, and non-Linux Hosts have not been tested. See
+  [Verification status](docs/verification.md) for the full list of open unknowns.
 
 ## What DeckPad changes on your Deck
 
@@ -259,7 +266,7 @@ If the panel itself stops responding, reload DeckPad from Decky's settings.
   `pnpm i --frozen-lockfile`, then packages with the [Decky CLI](https://github.com/SteamDeckHomebrew/cli)
   (`decky plugin build`).
 - Vendored Python modules and their versions: `py_modules/README.md`.
-- Design decisions: `docs/adr/`. Vocabulary: `GLOSSARY.md`.
+- Design decisions: `docs/adr/`. Vocabulary: `GLOSSARY.md`. Open unknowns: `docs/verification.md`.
 
 ## Acknowledgements
 

@@ -29,6 +29,10 @@ _Avoid_: gamepad mode, HID mode, peripheral mode
 A time-limited sub-state of Controller Mode in which new Hosts can discover the Deck and pair with it.
 _Avoid_: discoverable mode, scan mode
 
+**Controller Screen**:
+DeckPad's full-screen page on the Deck, opened from the panel while a Host is connected. It holds Steam's focus so Steam's UI does not react to the Deck Controls going to the Host.
+_Avoid_: overlay, lock screen
+
 ## Input and output
 
 **Deck Controls**:

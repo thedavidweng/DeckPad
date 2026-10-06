@@ -6,6 +6,6 @@ Evdev is not an option. `hid-steam` emits no gamepad events on the Deck while St
 
 ## Consequences
 
-- Steam keeps receiving the same inputs, so whatever has focus on the Deck reacts to presses while Controller Mode is on. That is the Steam UI or a running game. The QAM and Steam buttons always reach Steam. How to neutralise this (for example, a full-screen DeckPad route that swallows navigation) is open for #3/#5.
+- Steam keeps receiving the same inputs, so whatever has focus on the Deck reacts to presses while Controller Mode is on. That is the Steam UI or a running game. The QAM and Steam buttons always reach Steam. The Controller Screen (ADR-0011) holds Steam's UI focus to absorb navigation; a running game still reacts.
 - The report layout is undocumented Valve firmware behaviour. It is cross-checked against ControllerOS's mapping and the kernel's `hid-steam.c`, but a SteamOS or firmware update could change it.
 - Discovery must use VID/PID plus sysfs topology, never a fixed `hidrawN`.
