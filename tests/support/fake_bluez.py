@@ -115,6 +115,8 @@ class FakeBluez:
         self.disconnect_requests = []
         # Ordered record of calls that matter for teardown ordering, e.g. ("Disconnect", path).
         self.calls = []
+        # (characteristic path, value) for every GATT notification the application sent, in order.
+        self.notifications = []
 
     @property
     def default_agent(self):
@@ -240,6 +242,31 @@ class FakeBluez:
             raise RuntimeError("%s: %s" % (reply.error_name, reply.body))
         return bytes(reply.body[0])
 
+    def input_report_path(self):
+        """The object path of the gamepad input report (the notifying 2a4d characteristic)."""
+        return next(
+            path for path, props in self.gatt_objects("org.bluez.GattCharacteristic1", "2a4d") if "notify" in props["Flags"]
+        )
+
+    def gamepad_reports(self):
+        """Every Gamepad Report notified to Hosts so far, oldest first."""
+        path = self.input_report_path()
+        return [value for p, value in self.notifications if p == path]
+
+    async def host_subscribes(self, path=None):
+        """The Host writes the input report's CCCD; bluetoothd turns that into StartNotify."""
+        ((sender, _app),) = self.applications.keys()
+        reply = await self.bus.call(
+            Message(
+                destination=sender,
+                path=path or self.input_report_path(),
+                interface="org.bluez.GattCharacteristic1",
+                member="StartNotify",
+            )
+        )
+        if reply.message_type == MessageType.ERROR:
+            raise RuntimeError("%s: %s" % (reply.error_name, reply.body))
+
     async def start(self):
         self.bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
         self.bus.export("/org/bluez", _Marker("org.bluez.AgentManager1"))
@@ -258,6 +285,16 @@ class FakeBluez:
                 body=["type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged'"],
             )
         )
+        await self.bus.call(
+            Message(
+                destination="org.freedesktop.DBus",
+                path="/org/freedesktop/DBus",
+                interface="org.freedesktop.DBus",
+                member="AddMatch",
+                signature="s",
+                body=["type='signal',member='PropertiesChanged',arg0='org.bluez.GattCharacteristic1'"],
+            )
+        )
         await self.bus.request_name("org.bluez")
 
     async def stop(self):
@@ -271,6 +308,14 @@ class FakeBluez:
             name, _old, new = msg.body
             if name.startswith(":") and not new:
                 self._drop_client(name)
+            return False
+        if (
+            msg.message_type == MessageType.SIGNAL
+            and msg.member == "PropertiesChanged"
+            and msg.body[0] == "org.bluez.GattCharacteristic1"
+            and "Value" in msg.body[1]
+        ):
+            self.notifications.append((msg.path, bytes(msg.body[1]["Value"].value)))
             return False
         if msg.message_type != MessageType.METHOD_CALL:
             return False

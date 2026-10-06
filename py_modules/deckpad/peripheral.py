@@ -44,6 +44,7 @@ def build_application(on_host=None):
         gatt.uuid16("2a4d"), ["encrypt-read", "notify"], identity.NEUTRAL_GAMEPAD_REPORT
     )
     gamepad.add_descriptor(REPORT_REFERENCE, ["read"], bytes([identity.INPUT_REPORT_ID, _REPORT_TYPE_INPUT]))
+    app.gamepad_input = gamepad
     rumble = hid.add_characteristic(
         gatt.uuid16("2a4d"),
         ["encrypt-read", "encrypt-write", "write-without-response"],
@@ -104,6 +105,7 @@ class Peripheral:
         self._hosts = set()
         self._advertising = False
         self._device_id_override = None
+        self._gamepad_input = None
         # Teardown steps for what has been registered so far, run newest first. Later
         # registrations (advertisement, connected Hosts) therefore unwind before the application
         # and the agent.
@@ -144,6 +146,7 @@ class Peripheral:
 
             app = build_application(self._hosts.add)
             app.export(bus)
+            self._gamepad_input = app.gamepad_input
             adapter_path = self._adapter_path
             await bluez.register_application(bus, adapter_path, APP_PATH)
             self._undo.append(
@@ -168,6 +171,16 @@ class Peripheral:
             self._device_id_override.restore()
             self._device_id_override = None
 
+    @property
+    def adapter_index(self):
+        """The kernel's index for the adapter (hciN), or None before start."""
+        if not self._adapter_path or not self._adapter_path.rsplit("/", 1)[-1].startswith("hci"):
+            return None
+        try:
+            return int(self._adapter_path.rsplit("/hci", 1)[-1])
+        except ValueError:
+            return None
+
     async def advertise(self):
         if self._advertising or self._bus is None:
             return
@@ -182,6 +195,20 @@ class Peripheral:
             await bluez.unregister_advertisement(self._bus, self._adapter_path, ADVERTISEMENT_PATH)
         except bluez.BluezError as e:
             log.warning("Could not stop advertising: %s", e)
+
+    def send_gamepad_report(self, report):
+        """Notify the Connected Host of a new Gamepad Report. Returns False if no Host is listening.
+
+        Hosts that poll the report with ReadValue get the latest value either way.
+        """
+        gamepad = self._gamepad_input
+        if gamepad is None or self._bus is None:
+            return False
+        gamepad.value = report
+        if not gamepad.notifying or not self._connected_hosts():
+            return False
+        gamepad.emit_properties_changed({"Value": report})
+        return True
 
     def _connected_hosts(self):
         return sorted(

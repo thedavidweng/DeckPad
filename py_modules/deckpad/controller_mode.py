@@ -7,8 +7,11 @@ arrive mid-transition are applied in order against the settled state.
 
 import asyncio
 import logging
+import os
 
-from . import errors
+from . import connection_interval, errors
+from .deck_input import DeckInput
+from .link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 from .hosts import PairedHosts
 from .pairing import PairingMode
 from .peripheral import Peripheral
@@ -25,8 +28,16 @@ STOP_TIMEOUT = 5.0
 
 
 class ControllerMode:
-    def __init__(self, on_change=None, start_timeout=START_TIMEOUT, stop_timeout=STOP_TIMEOUT, paired_hosts=None):
+    def __init__(
+        self,
+        on_change=None,
+        start_timeout=START_TIMEOUT,
+        stop_timeout=STOP_TIMEOUT,
+        paired_hosts=None,
+        interval_state_path=None,
+    ):
         self._on_change = on_change
+        self._interval_state_path = interval_state_path
         self._paired_hosts = paired_hosts if paired_hosts is not None else PairedHosts()
         self._start_timeout = start_timeout
         self._stop_timeout = stop_timeout
@@ -34,6 +45,9 @@ class ControllerMode:
         self._status = OFF
         self._error = None
         self._peripheral = None
+        self._input = None
+        self._link = None
+        self._interval_request = None
         self._closed = False
         self._pairing = PairingMode(on_change=self._changed, on_paired=self._paired_hosts.add)
 
@@ -79,6 +93,7 @@ class ControllerMode:
         """
         self._closed = True
         self._pairing.detach()
+        self._stop_input()
         if self._peripheral is not None:
             self._peripheral.close()
             self._peripheral = None
@@ -105,6 +120,7 @@ class ControllerMode:
                 return
             log.info("Controller Mode on")
             self._pairing.attach(peripheral)
+            self._start_input(peripheral)
             await self._set_status(ON)
             return
         await self._set_status(OFF)
@@ -117,6 +133,7 @@ class ControllerMode:
 
     async def _stop(self):
         self._pairing.detach()
+        self._stop_input()
         await self._set_status(STOPPING)
         peripheral, self._peripheral = self._peripheral, None
         try:
@@ -127,6 +144,31 @@ class ControllerMode:
             peripheral.close()
         log.info("Controller Mode off")
         await self._set_status(OFF)
+
+    def _start_input(self, peripheral):
+        report_interval = lambda: FALLBACK_REPORT_INTERVAL  # noqa: E731
+        index = peripheral.adapter_index
+        # Both need root: MGMT configuration commands and HCI event filters are privileged.
+        if os.geteuid() == 0 and index is not None:
+            if self._interval_state_path:
+                self._interval_request = connection_interval.request(index, self._interval_state_path)
+            self._link = LinkMonitor(index)
+            self._link.start()
+            report_interval = self._link.report_interval
+        self._input = DeckInput(peripheral.send_gamepad_report, report_interval)
+        self._input.start()
+
+    def _stop_input(self):
+        """Synchronous, so it also serves plugin unload."""
+        if self._input is not None:
+            self._input.stop()
+            self._input = None
+        if self._link is not None:
+            self._link.stop()
+            self._link = None
+        if self._interval_request is not None:
+            self._interval_request.restore()
+            self._interval_request = None
 
     async def _set_status(self, status):
         self._status = status
