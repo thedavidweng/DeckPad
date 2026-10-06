@@ -10,6 +10,7 @@ import logging
 import os
 
 from . import connection_interval, errors
+from .connections import Connections
 from .deck_input import DeckInput
 from .link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 from .hosts import PairedHosts
@@ -49,7 +50,8 @@ class ControllerMode:
         self._link = None
         self._interval_request = None
         self._closed = False
-        self._pairing = PairingMode(on_change=self._changed, on_paired=self._paired_hosts.add)
+        self._pairing = PairingMode(on_change=self._pairing_changed, on_paired=self._paired_hosts.add)
+        self._connections = Connections(self._paired_hosts, self._pairing, on_change=self._changed)
 
     def snapshot(self):
         return {
@@ -57,6 +59,7 @@ class ControllerMode:
             "status": self._status,
             "error": self._error.to_dict() if self._error else None,
             "pairing": self._pairing.snapshot(),
+            **self._connections.snapshot(),
         }
 
     async def set_enabled(self, enabled):
@@ -82,6 +85,35 @@ class ControllerMode:
                     await self._pairing.close()
         return self.snapshot()
 
+    async def disconnect_host(self, address):
+        """Disconnect a Connected Host from the panel; it stays a Paired Host."""
+        async with self._lock:
+            if self._status == ON:
+                await self._run(self._connections.disconnect(address))
+        return self.snapshot()
+
+    async def forget_host(self, address):
+        """Remove a Paired Host and its pairing on the Deck. Works whether or not Controller Mode is on."""
+        async with self._lock:
+            if self._status == ON:
+                await self._run(self._connections.forget(address))
+            elif self._status == OFF:
+                await self._run(self._connections.forget_offline(address))
+        return self.snapshot()
+
+    async def allow_reconnect(self):
+        async with self._lock:
+            if self._status == ON:
+                await self._run(self._connections.allow_reconnect())
+        return self.snapshot()
+
+    async def _run(self, action):
+        try:
+            await action
+        except Exception as e:
+            log.warning("Connection action failed: %r", e)
+        await self._changed()
+
     def shutdown(self):
         """Return the Deck to ordinary SteamOS Bluetooth behaviour immediately, for plugin unload.
 
@@ -93,6 +125,7 @@ class ControllerMode:
         """
         self._closed = True
         self._pairing.detach()
+        self._connections.detach()
         self._stop_input()
         if self._peripheral is not None:
             self._peripheral.close()
@@ -103,7 +136,7 @@ class ControllerMode:
     async def _start(self):
         self._error = None
         await self._set_status(STARTING)
-        peripheral = Peripheral(listener=self._pairing, paired_hosts=self._paired_hosts)
+        peripheral = Peripheral(listener=_Listeners(self._pairing, self._connections), paired_hosts=self._paired_hosts)
         self._peripheral = peripheral
         try:
             await asyncio.wait_for(peripheral.start(), self._start_timeout)
@@ -119,8 +152,12 @@ class ControllerMode:
                 peripheral.close()
                 return
             log.info("Controller Mode on")
-            self._pairing.attach(peripheral)
+            # Input first: the connection interval range must be set before any advertisement lets a
+            # Host connect, because the kernel only asks for it when the connection comes up.
             self._start_input(peripheral)
+            self._pairing.attach(peripheral)
+            self._connections.attach(peripheral)
+            await self._connections.reconcile()
             await self._set_status(ON)
             return
         await self._set_status(OFF)
@@ -133,6 +170,7 @@ class ControllerMode:
 
     async def _stop(self):
         self._pairing.detach()
+        self._connections.detach()
         self._stop_input()
         await self._set_status(STOPPING)
         peripheral, self._peripheral = self._peripheral, None
@@ -144,6 +182,11 @@ class ControllerMode:
             peripheral.close()
         log.info("Controller Mode off")
         await self._set_status(OFF)
+
+    async def _pairing_changed(self):
+        # Once Pairing Mode stops accepting, Paired Hosts get their reconnect advertisement back.
+        await self._connections.reconcile()
+        await self._changed()
 
     def _start_input(self, peripheral):
         report_interval = lambda: FALLBACK_REPORT_INTERVAL  # noqa: E731
@@ -182,3 +225,21 @@ class ControllerMode:
             await self._on_change(self.snapshot())
         except Exception as e:
             log.warning("Could not publish Controller Mode state: %r", e)
+
+
+class _Listeners:
+    """Pairing Mode decides pairing requests; both Pairing Mode and Connections follow Device1 changes."""
+
+    def __init__(self, pairing, connections):
+        self._pairing = pairing
+        self._connections = connections
+
+    def pairing_requested(self, device):
+        return self._pairing.pairing_requested(device)
+
+    def device_changed(self, path, before, after):
+        self._pairing.device_changed(path, before, after)
+        self._connections.device_changed(path, before, after)
+
+    def device_removed(self, path, device):
+        self._connections.device_removed(path, device)

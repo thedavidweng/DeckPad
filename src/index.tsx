@@ -1,4 +1,13 @@
-import { ButtonItem, Field, PanelSection, PanelSectionRow, ToggleField, staticClasses } from "@decky/ui";
+import {
+  ButtonItem,
+  ConfirmModal,
+  Field,
+  PanelSection,
+  PanelSectionRow,
+  ToggleField,
+  showModal,
+  staticClasses,
+} from "@decky/ui";
 import { addEventListener, callable, definePlugin, removeEventListener } from "@decky/api";
 import { useEffect, useState } from "react";
 import { FaGamepad } from "react-icons/fa";
@@ -21,11 +30,21 @@ interface PairingState {
   error: ControllerModeError | null;
 }
 
+interface PairedHost {
+  address: string;
+  name: string | null;
+  connected: boolean;
+}
+
+type ConnectionStatus = "idle" | "waiting" | "connected" | "paused";
+
 interface ControllerModeState {
   enabled: boolean;
   status: Status;
   error: ControllerModeError | null;
   pairing: PairingState;
+  hosts: PairedHost[];
+  connection: ConnectionStatus;
 }
 
 const STATE_EVENT = "controller_mode_state";
@@ -33,6 +52,11 @@ const STATE_EVENT = "controller_mode_state";
 const getState = callable<[], ControllerModeState>("get_state");
 const setControllerMode = callable<[enabled: boolean], ControllerModeState>("set_controller_mode");
 const setPairingMode = callable<[enabled: boolean], ControllerModeState>("set_pairing_mode");
+const disconnectHost = callable<[address: string], ControllerModeState>("disconnect_host");
+const forgetHost = callable<[address: string], ControllerModeState>("forget_host");
+const allowReconnect = callable<[], ControllerModeState>("allow_reconnect");
+
+const NOT_RESPONDING = "Reload DeckPad from Decky's settings, then try again.";
 
 const DESCRIPTIONS: Record<Status, string> = {
   off: "Turn on to use this Deck as a Bluetooth controller for another device.",
@@ -155,6 +179,121 @@ function PairingRows({ pairing, onRequestError }: { pairing: PairingState; onReq
   }
 }
 
+// Hosts whose name Bluetooth has not learned yet get a numbered placeholder instead of an address.
+function hostNames(hosts: PairedHost[]): Map<string, string> {
+  const names = new Map<string, string>();
+  let unnamed = 0;
+  for (const host of hosts) {
+    if (host.name) {
+      names.set(host.address, host.name);
+    } else {
+      unnamed += 1;
+      names.set(host.address, unnamed === 1 ? "Unnamed device" : `Unnamed device ${unnamed}`);
+    }
+  }
+  return names;
+}
+
+function ConnectionRows({
+  state,
+  names,
+  onRequestError,
+}: {
+  state: ControllerModeState;
+  names: Map<string, string>;
+  onRequestError: () => void;
+}) {
+  const connected = state.hosts.filter((host) => host.connected);
+
+  switch (state.connection) {
+    case "connected":
+      return (
+        <PanelSectionRow>
+          <Field
+            label={`Connected to ${connected.map((host) => names.get(host.address)).join(", ")}`}
+            description="Your controls are going to this device."
+            focusable
+          />
+        </PanelSectionRow>
+      );
+    case "waiting":
+      return (
+        <PanelSectionRow>
+          <Field
+            label="Waiting for a paired device"
+            description="A paired device reconnects on its own, or connect to this Deck from its Bluetooth settings."
+            focusable
+          />
+        </PanelSectionRow>
+      );
+    case "paused":
+      return (
+        <>
+          <PanelSectionRow>
+            <Field label="Disconnected" description="Paired devices will not reconnect until you allow it." focusable />
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={() => allowReconnect().catch(onRequestError)}>
+              Allow Reconnecting
+            </ButtonItem>
+          </PanelSectionRow>
+        </>
+      );
+    default:
+      return null;
+  }
+}
+
+function PairedHostRows({
+  state,
+  names,
+  onRequestError,
+}: {
+  state: ControllerModeState;
+  names: Map<string, string>;
+  onRequestError: () => void;
+}) {
+  if (state.hosts.length === 0) return null;
+
+  const confirmForget = (host: PairedHost) => {
+    const name = names.get(host.address) ?? "this device";
+    showModal(
+      <ConfirmModal
+        strTitle={`Forget ${name}?`}
+        strDescription={
+          `${name} will need to pair again to use this Deck as a controller. ` +
+          `Also remove this Deck from ${name}'s Bluetooth settings.`
+        }
+        strOKButtonText="Forget"
+        bDestructiveWarning
+        onOK={() => forgetHost(host.address).catch(onRequestError)}
+      />,
+    );
+  };
+
+  return (
+    <PanelSection title="Paired Devices">
+      {state.hosts.map((host) => (
+        <PanelSectionRow key={host.address}>
+          <Field
+            label={names.get(host.address)}
+            description={host.connected ? "Connected" : "Not connected"}
+            focusable
+          />
+          {host.connected && (
+            <ButtonItem layout="below" onClick={() => disconnectHost(host.address).catch(onRequestError)}>
+              Disconnect
+            </ButtonItem>
+          )}
+          <ButtonItem layout="below" onClick={() => confirmForget(host)}>
+            Forget
+          </ButtonItem>
+        </PanelSectionRow>
+      ))}
+    </PanelSection>
+  );
+}
+
 function Content() {
   const state = useControllerModeState();
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -177,39 +316,41 @@ function Content() {
     try {
       await setControllerMode(enabled);
     } catch {
-      setRequestError("Reload DeckPad from Decky's settings, then try again.");
+      setRequestError(NOT_RESPONDING);
     }
   };
-
+  const onRequestError = () => setRequestError(NOT_RESPONDING);
+  const names = hostNames(state.hosts);
 
   return (
-    <PanelSection>
-      <PanelSectionRow>
-        <ToggleField
-          label="Controller Mode"
-          description={DESCRIPTIONS[state.status]}
-          checked={checked}
-          disabled={busy}
-          onChange={onChange}
-        />
-      </PanelSectionRow>
-      {state.status === "on" && (
-        <PairingRows
-          pairing={state.pairing}
-          onRequestError={() => setRequestError("Reload DeckPad from Decky's settings, then try again.")}
-        />
-      )}
-      {state.error && (
+    <>
+      <PanelSection>
         <PanelSectionRow>
-          <Field label="Could not turn on Controller Mode" description={state.error.message} focusable />
+          <ToggleField
+            label="Controller Mode"
+            description={DESCRIPTIONS[state.status]}
+            checked={checked}
+            disabled={busy}
+            onChange={onChange}
+          />
         </PanelSectionRow>
+        {state.status === "on" && <ConnectionRows state={state} names={names} onRequestError={onRequestError} />}
+        {state.status === "on" && <PairingRows pairing={state.pairing} onRequestError={onRequestError} />}
+        {state.error && (
+          <PanelSectionRow>
+            <Field label="Could not turn on Controller Mode" description={state.error.message} focusable />
+          </PanelSectionRow>
+        )}
+        {requestError && (
+          <PanelSectionRow>
+            <Field label="DeckPad is not responding" description={requestError} focusable />
+          </PanelSectionRow>
+        )}
+      </PanelSection>
+      {(state.status === "on" || state.status === "off") && (
+        <PairedHostRows state={state} names={names} onRequestError={onRequestError} />
       )}
-      {requestError && (
-        <PanelSectionRow>
-          <Field label="DeckPad is not responding" description={requestError} focusable />
-        </PanelSectionRow>
-      )}
-    </PanelSection>
+    </>
   );
 }
 

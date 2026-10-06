@@ -10,6 +10,7 @@ It models only the contract DeckPad relies on, the way BlueZ 5.83 behaves on the
 import asyncio
 
 from dbus_fast import BusType, Message, MessageType, Variant
+from dbus_fast.errors import DBusError
 from dbus_fast.aio import MessageBus
 from dbus_fast.service import PropertyAccess, ServiceInterface, dbus_property, method
 
@@ -24,8 +25,9 @@ _DOES_NOT_EXIST = "org.bluez.Error.DoesNotExist"
 
 
 class _Adapter(ServiceInterface):
-    def __init__(self, powered):
+    def __init__(self, bluez, powered):
         super().__init__("org.bluez.Adapter1")
+        self._bluez = bluez
         self.powered = powered
 
     @dbus_property(access=PropertyAccess.READ)
@@ -40,6 +42,13 @@ class _Adapter(ServiceInterface):
     @dbus_property(access=PropertyAccess.READ)
     def Alias(self) -> "s":
         return "steamdeck"
+
+    @method()
+    async def RemoveDevice(self, device: "o"):
+        self._bluez.calls.append(("RemoveDevice", device))
+        if device not in self._bluez.devices:
+            raise DBusError(_DOES_NOT_EXIST, "Does Not Exist")
+        await self._bluez.remove_device(device)
 
 
 class _Marker(ServiceInterface):
@@ -102,7 +111,7 @@ class _Device(ServiceInterface):
 class FakeBluez:
     def __init__(self, adapter=True, powered=True):
         self._has_adapter = adapter
-        self._adapter = _Adapter(powered)
+        self._adapter = _Adapter(self, powered)
         self.bus = None
         self.agents = {}
         self.default_agents = [STEAM_AGENT]
@@ -185,6 +194,13 @@ class FakeBluez:
             device.update(connected=True)
         return device.path
 
+    async def host_reconnects(self, path):
+        """A Paired Host connects again on its own. It needs no scan list entry, only a connectable
+        advertisement from the Deck, which it recognises by address."""
+        assert self.advertisement, "the Host cannot reconnect: the Deck is not advertising"
+        assert self.devices[path].paired, "only a Paired Host reconnects by itself"
+        self.devices[path].update(connected=True)
+
     async def host_pairs(self, path):
         """The Host asks to pair; bluetoothd hands Just Works pairing to the default agent.
 
@@ -211,6 +227,13 @@ class FakeBluez:
         else:
             device.update(connected=False)
         return ok
+
+    async def remove_device(self, path):
+        """The bond is removed on the Deck (DeckPad's Forget, or Steam's Bluetooth settings)."""
+        device = self.devices.pop(path)
+        if device.connected:
+            device.update(connected=False)
+        self.bus.unexport(path, device)
 
     async def host_disconnects(self, path):
         self.devices[path].update(connected=False)

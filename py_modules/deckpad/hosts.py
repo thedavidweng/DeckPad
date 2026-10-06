@@ -1,8 +1,8 @@
 """The Hosts that paired through DeckPad, remembered across sessions and plugin reloads.
 
 bluetoothd's bond list also holds the user's headphones, keyboards and other peripherals, so DeckPad
-keeps its own record of which bonds are Paired Hosts. Only these are ever disconnected (or, later,
-listed and forgotten) by DeckPad.
+keeps its own record of which bonds are Paired Hosts. Only these are ever listed, disconnected or
+forgotten by DeckPad.
 """
 
 import json
@@ -10,6 +10,15 @@ import logging
 import os
 
 log = logging.getLogger("deckpad.hosts")
+
+
+def display_name(device):
+    """The name a person would recognise for a Device1, or None while bluetoothd only knows its address."""
+    address = device.get("Address")
+    name = device.get("Alias") or device.get("Name")
+    if not name or (address and name == address.replace(":", "-")):
+        return None
+    return name
 
 
 class PairedHosts:
@@ -32,6 +41,19 @@ class PairedHosts:
     def add(self, address, name):
         self._hosts[address] = {"address": address, "name": name}
         self._save()
+
+    def rename(self, address, name):
+        """Record a Paired Host's new name. Returns whether anything changed."""
+        host = self._hosts.get(address)
+        if host is None or not name or host["name"] == name:
+            return False
+        host["name"] = name
+        self._save()
+        return True
+
+    def remove(self, address):
+        if self._hosts.pop(address, None) is not None:
+            self._save()
 
     def _save(self):
         if not self._path:

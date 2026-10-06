@@ -5,6 +5,7 @@ that made it, so closing the connection is the backstop that releases anything a
 interrupted teardown left behind.
 """
 
+import asyncio
 import logging
 import os
 
@@ -89,6 +90,9 @@ class _NoListener:
     def device_changed(self, path, before, after):
         pass
 
+    def device_removed(self, path, device):
+        pass
+
 
 class Peripheral:
     """`listener` is told about pairing requests (and decides them) and about Device1 changes."""
@@ -104,6 +108,8 @@ class Peripheral:
         # Devices that paired with DeckPad or used its GATT service in this session.
         self._hosts = set()
         self._advertising = False
+        self._advertisement = None
+        self._advertising_lock = asyncio.Lock()
         self._device_id_override = None
         self._gamepad_input = None
         # Teardown steps for what has been registered so far, run newest first. Later
@@ -152,7 +158,8 @@ class Peripheral:
             self._undo.append(
                 ("unregister application", lambda: bluez.unregister_application(bus, adapter_path, APP_PATH))
             )
-            bus.export(ADVERTISEMENT_PATH, Advertisement(self.local_name))
+            self._advertisement = Advertisement(self.local_name)
+            bus.export(ADVERTISEMENT_PATH, self._advertisement)
             await self._override_device_id(adapter.get("Modalias"))
         except bluez.BluezError as e:
             if e.service_unavailable:
@@ -181,13 +188,34 @@ class Peripheral:
         except ValueError:
             return None
 
-    async def advertise(self):
-        if self._advertising or self._bus is None:
-            return
-        await bluez.register_advertisement(self._bus, self._adapter_path, ADVERTISEMENT_PATH)
-        self._advertising = True
+    async def advertise(self, discoverable=True):
+        """Advertise the Deck: discoverable for Pairing Mode, or only connectable for Paired Hosts.
+
+        Switching between the two re-registers the advertisement. Calls are serialised, so the last
+        one wins even when callers race.
+        """
+        async with self._advertising_lock:
+            if self._bus is None:
+                return
+            if self._advertising and self._advertisement.discoverable == discoverable:
+                return
+            await self._unregister_advertisement()
+            self._advertisement.discoverable = discoverable
+            await bluez.register_advertisement(self._bus, self._adapter_path, ADVERTISEMENT_PATH)
+            self._advertising = True
 
     async def stop_advertising(self):
+        async with self._advertising_lock:
+            await self._unregister_advertisement()
+
+    @property
+    def advertising(self):
+        """None, "discoverable", or "connectable"."""
+        if not self._advertising:
+            return None
+        return "discoverable" if self._advertisement.discoverable else "connectable"
+
+    async def _unregister_advertisement(self):
         if not self._advertising or self._bus is None:
             return
         self._advertising = False
@@ -209,6 +237,14 @@ class Peripheral:
             return False
         gamepad.emit_properties_changed({"Value": report})
         return True
+
+    async def disconnect_device(self, path):
+        if self._bus is not None:
+            await bluez.disconnect_device(self._bus, path)
+
+    async def remove_device(self, path):
+        if self._bus is not None:
+            await bluez.remove_device(self._bus, self._adapter_path, path)
 
     def _connected_hosts(self):
         return sorted(
@@ -267,6 +303,10 @@ class Peripheral:
     def _device(self, path):
         return dict(self._devices.get(path, {}), path=path)
 
+    def devices(self):
+        """Every remote device bluetoothd currently reports, as dicts with a `path` key."""
+        return [self._device(path) for path in sorted(self._devices)]
+
     def _load_devices(self, objects):
         for path, interfaces in objects.items():
             if bluez.DEVICE in interfaces:
@@ -280,7 +320,12 @@ class Peripheral:
         elif msg.member == "InterfacesAdded" and bluez.DEVICE in msg.body[1]:
             self._update_device(msg.body[0], bluez.device_properties(msg.body[1][bluez.DEVICE]))
         elif msg.member == "InterfacesRemoved" and bluez.DEVICE in msg.body[1]:
+            device = self._device(msg.body[0])
             self._devices.pop(msg.body[0], None)
+            try:
+                self._listener.device_removed(msg.body[0], device)
+            except Exception:
+                log.exception("Device removal handler failed for %s", msg.body[0])
         return False
 
     def _update_device(self, path, changes):

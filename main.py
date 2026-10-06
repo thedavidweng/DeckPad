@@ -41,6 +41,15 @@ class Plugin:
     async def set_pairing_mode(self, enabled):
         return await self._controller_mode.set_pairing_mode(bool(enabled))
 
+    async def disconnect_host(self, address):
+        return await self._controller_mode.disconnect_host(str(address))
+
+    async def forget_host(self, address):
+        return await self._controller_mode.forget_host(str(address))
+
+    async def allow_reconnect(self):
+        return await self._controller_mode.allow_reconnect()
+
     async def _main(self):
         from dbus_fast.__version__ import __version__ as dbus_fast_version
 

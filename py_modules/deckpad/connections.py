@@ -1,0 +1,171 @@
+"""Connection management for Paired Hosts while Controller Mode is on: which one is connected, letting a
+returning Host reconnect, Disconnect, and Forget.
+
+`connection` moves between idle (nothing to wait for), waiting (no Paired Host connected; the Deck sends
+a connectable but non-discoverable advertisement so a Paired Host can reconnect by itself), connected,
+and paused. Disconnect pauses reconnecting until the user allows it again or the next Controller Mode
+session: otherwise a Host that auto-connects would come straight back.
+BlueZ offers no directed advertising, so any Paired Host in range may be the one that reconnects.
+Advertising stops while a Host is connected, because a connectable advertisement during a connection
+can make the controller drop the link.
+
+Only Paired Hosts (the `PairedHosts` record) are ever listed, disconnected or removed; the Deck's other
+Bluetooth devices are left alone.
+"""
+
+import asyncio
+import logging
+
+from dbus_fast import BusType
+from dbus_fast.aio import MessageBus
+
+from . import bluez
+from .hosts import display_name
+
+log = logging.getLogger("deckpad.connections")
+
+CONNECTED = "connected"
+WAITING = "waiting"
+PAUSED = "paused"
+IDLE = "idle"
+
+
+class Connections:
+    """`pairing` is the Pairing Mode, which owns the advertisement while it accepts new Hosts."""
+
+    def __init__(self, paired_hosts, pairing, on_change):
+        self._paired_hosts = paired_hosts
+        self._pairing = pairing
+        self._on_change = on_change
+        self._peripheral = None
+        self._paused = False
+        self._tasks = set()
+
+    def snapshot(self):
+        devices = self._devices_by_address()
+        hosts = []
+        for host in self._paired_hosts.all():
+            device = devices.get(host["address"], {})
+            hosts.append(
+                {
+                    "address": host["address"],
+                    "name": host["name"],
+                    "connected": bool(device.get("Connected")),
+                }
+            )
+        hosts.sort(key=lambda h: (not h["connected"], (h["name"] or "").lower(), h["address"]))
+        if any(h["connected"] for h in hosts):
+            status = CONNECTED
+        elif hosts and self._peripheral is not None and self._peripheral.advertising:
+            status = WAITING
+        elif hosts and self._peripheral is not None and self._paused:
+            status = PAUSED
+        else:
+            status = IDLE
+        return {"hosts": hosts, "connection": status}
+
+    async def reconcile(self):
+        """Advertise for Paired Hosts exactly while one could reconnect and Pairing Mode is not advertising."""
+        peripheral = self._peripheral
+        if peripheral is None or self._pairing.accepting:
+            return
+        try:
+            if self._paired_hosts.all() and not self._paused and not self._connected_hosts():
+                await peripheral.advertise(discoverable=False)
+            else:
+                await peripheral.stop_advertising()
+        except Exception as e:
+            log.warning("Could not update the reconnect advertisement: %r", e)
+
+    async def disconnect(self, address):
+        """Drop a Connected Host's link, keeping its pairing, and pause reconnecting."""
+        device = self._devices_by_address().get(address)
+        if self._peripheral is None or address not in self._paired_hosts or not device or not device.get("Connected"):
+            return
+        self._paused = True
+        log.info("Disconnecting %s", address)
+        await self._peripheral.disconnect_device(device["path"])
+        await self.reconcile()
+
+    async def forget(self, address):
+        """Remove a Paired Host's pairing on the Deck (disconnecting it if needed) and drop its record."""
+        if self._peripheral is None or address not in self._paired_hosts:
+            return
+        device = self._devices_by_address().get(address)
+        log.info("Forgetting %s", address)
+        if device is not None:
+            await self._peripheral.remove_device(device["path"])
+        self._paired_hosts.remove(address)
+        await self.reconcile()
+
+    async def forget_offline(self, address):
+        """Forget while Controller Mode is off, over a connection that lasts only for this call."""
+        if address not in self._paired_hosts:
+            return
+        log.info("Forgetting %s", address)
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        try:
+            adapter_path, _adapter = await bluez.find_adapter(bus)
+            for path, interfaces in (await bluez.managed_objects(bus)).items():
+                device = interfaces.get(bluez.DEVICE)
+                if device is not None and bluez.device_properties(device).get("Address") == address:
+                    await bluez.remove_device(bus, adapter_path, path)
+        finally:
+            bus.disconnect()
+        self._paired_hosts.remove(address)
+
+    def device_removed(self, path, device):
+        # The pairing was removed elsewhere (Steam's Bluetooth settings), so the Host is no longer paired.
+        if device.get("Address") in self._paired_hosts:
+            self._paired_hosts.remove(device["Address"])
+            self._spawn(self._update())
+
+    async def allow_reconnect(self):
+        if self._peripheral is None:
+            return
+        self._paused = False
+        await self.reconcile()
+
+    def attach(self, peripheral):
+        self._peripheral = peripheral
+        self._paused = False
+        known = {d.get("Address") for d in peripheral.devices()}
+        for host in self._paired_hosts.all():
+            if host["address"] not in known:
+                log.info("%s was unpaired outside DeckPad; forgetting it", host["address"])
+                self._paired_hosts.remove(host["address"])
+        for device in peripheral.devices():
+            self._refresh_name(device)
+
+    def detach(self):
+        self._peripheral = None
+
+    def device_changed(self, path, before, after):
+        if after.get("Address") not in self._paired_hosts:
+            return
+        renamed = self._refresh_name(after)
+        if before.get("Connected") != after.get("Connected"):
+            self._spawn(self._update())
+        elif renamed:
+            self._spawn(self._on_change())
+
+    async def _update(self):
+        await self.reconcile()
+        await self._on_change()
+
+    def _connected_hosts(self):
+        return [d for d in self._devices_by_address().values() if d.get("Connected") and d.get("Address") in self._paired_hosts]
+
+    def _refresh_name(self, device):
+        """Paired Hosts are often recorded before bluetoothd learns their name; keep the record current."""
+        return self._paired_hosts.rename(device.get("Address"), display_name(device))
+
+    def _devices_by_address(self):
+        if self._peripheral is None:
+            return {}
+        return {d.get("Address"): d for d in self._peripheral.devices()}
+
+    def _spawn(self, coro):
+        task = asyncio.get_running_loop().create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
