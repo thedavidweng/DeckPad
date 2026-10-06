@@ -18,9 +18,6 @@ Bluetooth devices are left alone.
 import asyncio
 import logging
 
-from dbus_fast import BusType
-from dbus_fast.aio import MessageBus
-
 from . import bluez, errors
 from .hosts import display_name
 
@@ -120,14 +117,29 @@ class Connections:
         if address not in self._paired_hosts:
             return
         log.info("Forgetting %s", address)
-        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-        try:
+        async with bluez.temporary_connection() as bus:
             adapter_path, _adapter = await bluez.find_adapter(bus)
-            for path in await _device_paths(bus, address):
-                await bluez.remove_device(bus, adapter_path, path)
-        finally:
-            bus.disconnect()
+            await _remove_pairing(bus, adapter_path, address)
         self._paired_hosts.remove(address)
+
+    async def forget_all_offline(self):
+        """Remove every Paired Host's pairing on the Deck while Controller Mode is off (for uninstall).
+
+        The Deck's other Bluetooth devices are left alone. A Host whose pairing could not be removed
+        stays in the record.
+        """
+        if not self._paired_hosts.all():
+            return
+        async with bluez.temporary_connection() as bus:
+            adapter_path, _adapter = await bluez.find_adapter(bus)
+            for host in self._paired_hosts.all():
+                log.info("Forgetting %s", host["address"])
+                try:
+                    await _remove_pairing(bus, adapter_path, host["address"])
+                except bluez.BluezError as e:
+                    log.warning("Could not remove the pairing with %s: %s", host["address"], e)
+                else:
+                    self._paired_hosts.remove(host["address"])
 
     async def drop_stale_links(self):
         """While Controller Mode is off, disconnect Paired Hosts that are still connected.
@@ -138,15 +150,12 @@ class Connections:
         """
         if not self._paired_hosts.all():
             return
-        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-        try:
+        async with bluez.temporary_connection() as bus:
             for path, interfaces in (await bluez.managed_objects(bus)).items():
                 device = bluez.device_properties(interfaces.get(bluez.DEVICE, {}))
                 if device.get("Connected") and device.get("Address") in self._paired_hosts:
                     log.info("Disconnecting %s, left connected by a previous run", device["Address"])
                     await bluez.disconnect_device(bus, path)
-        finally:
-            bus.disconnect()
 
     def device_removed(self, path, device):
         if device.get("Address") in self._paired_hosts:
@@ -253,8 +262,9 @@ async def _devices(bus, address):
     return found
 
 
-async def _device_paths(bus, address):
-    return [path for path, _props in await _devices(bus, address)]
+async def _remove_pairing(bus, adapter_path, address):
+    for path, _props in await _devices(bus, address):
+        await bluez.remove_device(bus, adapter_path, path)
 
 
 async def _unpaired(address):
@@ -262,9 +272,6 @@ async def _unpaired(address):
 
     Steam scans all the time, so a removed device can already be back as an unpaired object.
     """
-    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-    try:
+    async with bluez.temporary_connection() as bus:
         await bluez.find_adapter(bus)
         return not any(props.get("Paired") for _path, props in await _devices(bus, address))
-    finally:
-        bus.disconnect()

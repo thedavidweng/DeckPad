@@ -78,18 +78,14 @@ async def restore_leftover_device_id():
     """
     if os.geteuid() != 0:
         return
-    bus = None
     try:
-        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-        _path, adapter = await bluez.find_adapter(bus)
-        pid = await bluez.service_pid(bus)
-        if device_id.restore_leftover(pid, adapter.get("Modalias"), identity.DEVICE_ID):
-            log.info("Restored bluetoothd's DeviceID left over from a previous run")
+        async with bluez.temporary_connection() as bus:
+            _path, adapter = await bluez.find_adapter(bus)
+            pid = await bluez.service_pid(bus)
+            if device_id.restore_leftover(pid, adapter.get("Modalias"), identity.DEVICE_ID):
+                log.info("Restored bluetoothd's DeviceID left over from a previous run")
     except Exception as e:
-        log.info("Could not check bluetoothd's DeviceID at startup: %r", e)
-    finally:
-        if bus is not None:
-            bus.disconnect()
+        log.info("Could not check bluetoothd's DeviceID: %r", e)
 
 
 class _NoListener:

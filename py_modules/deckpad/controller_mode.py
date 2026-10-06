@@ -11,6 +11,7 @@ import asyncio
 import collections
 import logging
 import os
+import threading
 
 from . import connection_interval, errors
 from .bluetooth_watch import BluetoothWatch
@@ -19,7 +20,7 @@ from .deck_input import DeckInput
 from .link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 from .hosts import PairedHosts
 from .pairing import PairingMode
-from .peripheral import Peripheral
+from .peripheral import Peripheral, restore_leftover_device_id
 
 log = logging.getLogger("deckpad.controller_mode")
 
@@ -32,6 +33,7 @@ RECOVERING = "recovering"
 
 START_TIMEOUT = 10.0
 STOP_TIMEOUT = 5.0
+UNINSTALL_TIMEOUT = 3.0
 # How long Controller Mode waits for Bluetooth to come back after it went away underneath it, and how
 # often it checks. A `systemctl restart bluetooth` takes a few seconds.
 RECOVERY_TIMEOUT = 20.0
@@ -217,6 +219,36 @@ class ControllerMode:
         self._end_session()
         self._status = OFF
         log.info("Controller Mode off (unload)")
+
+    def uninstall(self):
+        """Remove what DeckPad leaves on the Deck, for plugin uninstall: the pairings of Paired Hosts (and
+        nothing else), leftovers of a killed run, and DeckPad's state files.
+
+        Decky runs this right after `_unload`, with the event loop just as stuck (see `shutdown`), so the
+        Bluetooth part runs on its own event loop in a worker thread, joined with a timeout that keeps
+        the whole stop under Decky's 5 s.
+        """
+        self.shutdown()
+        worker = threading.Thread(
+            target=asyncio.run, args=(self._remove_bluetooth_traces(),), name="deckpad-uninstall", daemon=True
+        )
+        worker.start()
+        worker.join(UNINSTALL_TIMEOUT)
+        if worker.is_alive():
+            log.warning("Bluetooth did not answer in time; remove leftover Paired Hosts in Steam's settings")
+        if self._interval_state_path:
+            if os.geteuid() == 0:
+                connection_interval.restore_leftover(self._interval_state_path)
+            connection_interval.forget_leftover(self._interval_state_path)
+        self._paired_hosts.erase()
+        log.info("DeckPad uninstalled")
+
+    async def _remove_bluetooth_traces(self):
+        try:
+            await asyncio.wait_for(self._connections.forget_all_offline(), UNINSTALL_TIMEOUT)
+        except Exception as e:
+            log.warning("Could not remove the pairings of Paired Hosts: %r", e)
+        await restore_leftover_device_id()
 
     async def _start(self):
         self._error = None

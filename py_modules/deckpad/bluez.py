@@ -4,7 +4,10 @@ Calls are sent as explicit messages rather than through introspected proxies, so
 round trip and does not depend on BlueZ's introspection data.
 """
 
-from dbus_fast import Message, MessageType, Variant
+import contextlib
+
+from dbus_fast import BusType, Message, MessageType, Variant
+from dbus_fast.aio import MessageBus
 
 from . import errors
 
@@ -33,6 +36,16 @@ class BluezError(Exception):
     @property
     def service_unavailable(self):
         return self.name in _UNAVAILABLE
+
+
+@contextlib.asynccontextmanager
+async def temporary_connection():
+    """A system bus connection for one piece of work outside a Controller Mode session, closed afterwards."""
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    try:
+        yield bus
+    finally:
+        bus.disconnect()
 
 
 async def call(bus, path, interface, member, signature="", body=()):

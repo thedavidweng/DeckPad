@@ -55,6 +55,18 @@ class PairedHosts:
         if self._hosts.pop(address, None) is not None:
             self._save()
 
+    def erase(self):
+        """Forget every Paired Host and delete the record's file."""
+        self._hosts = {}
+        if self._path:
+            for path in (self._path, self._path + ".tmp"):
+                try:
+                    os.unlink(path)
+                except FileNotFoundError:
+                    pass
+                except OSError as e:
+                    log.warning("Could not delete %s: %r", path, e)
+
     def _save(self):
         if not self._path:
             return

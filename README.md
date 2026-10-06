@@ -202,8 +202,13 @@ Files DeckPad keeps, all under Decky's per-plugin directories:
 | `~/homebrew/data/DeckPad/connection_interval.json` | The adapter's previous connection interval, only while DeckPad has changed it |
 | `~/homebrew/logs/DeckPad/` | Decky's log files for DeckPad, and `diagnostics.txt` |
 
-Uninstalling DeckPad does not remove the Bluetooth pairings with your Hosts. Remove them in Steam's
-Bluetooth settings on the Deck and in each Host's Bluetooth settings.
+Uninstalling DeckPad from Decky's settings removes the Deck's pairings with the Hosts paired through
+DeckPad, and only those: headphones, keyboards, and other devices you paired in Steam stay paired. It
+also puts back bluetoothd's DeviceID and the adapter's connection interval if a crashed DeckPad left
+them changed, and deletes `paired_hosts.json`, `connection_interval.json`, and `diagnostics.txt`
+(Decky's own log files for DeckPad stay). If Bluetooth is off or does not answer within a few seconds
+during the uninstall, the pairings stay; remove them in Steam's Bluetooth settings. Each Host still
+lists the Deck afterwards: remove it in the Host's Bluetooth settings.
 
 ## Troubleshooting
 

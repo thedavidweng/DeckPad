@@ -79,7 +79,15 @@ class Plugin:
         decky.logger.info("DeckPad backend stopped")
 
     async def _uninstall(self):
-        pass
+        """Decky runs this after `_unload` when the user uninstalls DeckPad. Must not await (see shutdown)."""
+        self._controller_mode.uninstall()
+        path = os.path.join(decky.DECKY_PLUGIN_LOG_DIR, DIAGNOSTICS_FILE)
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            decky.logger.warning("Could not delete %s: %r", path, e)
 
     async def _migration(self):
         pass

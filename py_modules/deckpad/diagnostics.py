@@ -12,9 +12,6 @@ import os
 import sys
 import time
 
-from dbus_fast import BusType
-from dbus_fast.aio import MessageBus
-
 from . import bluez, connection_interval, deck_input, device_id, errors, identity
 
 log = logging.getLogger("deckpad.diagnostics")
@@ -129,8 +126,7 @@ async def collect(controller_mode, version=None):
 
 
 async def _bluetooth(root):
-    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
-    try:
+    async with bluez.temporary_connection() as bus:
         result = {"running": True}
         try:
             result["pid"] = await bluez.service_pid(bus)
@@ -154,8 +150,6 @@ async def _bluetooth(root):
                 except Exception as e:
                     log.info("Could not read the adapter's connection interval: %r", e)
         return result
-    finally:
-        bus.disconnect()
 
 
 def _index(adapter_path):

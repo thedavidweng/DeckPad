@@ -182,6 +182,11 @@ def restore_leftover(state_path, open_socket=open_mgmt_socket):
     return True
 
 
+def forget_leftover(state_path):
+    """Delete the saved range without restoring it (for uninstall, after restore_leftover had its chance)."""
+    _forget(state_path)
+
+
 def _set(open_socket, index, interval):
     mgmt = _Mgmt(open_socket)
     try:
