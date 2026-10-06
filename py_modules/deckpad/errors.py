@@ -38,6 +38,37 @@ def bluetooth_off(detail=None):
     )
 
 
+def advertising_failed(detail=None):
+    return ControllerModeError(
+        "advertising_failed",
+        "The Deck could not become discoverable. Turn Controller Mode off and on, then try again.",
+        detail,
+    )
+
+
+def pairing_timed_out(detail=None):
+    return ControllerModeError(
+        "pairing_timed_out",
+        "No device paired in time. Select Pair a Device again, then pick this Deck in the other "
+        "device's Bluetooth settings.",
+        detail,
+    )
+
+
+def pairing_failed(host_name=None, detail=None):
+    if host_name:
+        message = (
+            "Pairing with %s did not finish. If this Deck is already listed in %s's Bluetooth settings, "
+            "remove it there, then select Pair a Device and try again." % (host_name, host_name)
+        )
+    else:
+        message = (
+            "Pairing did not finish. If this Deck is already listed in the other device's Bluetooth "
+            "settings, remove it there, then select Pair a Device and try again."
+        )
+    return ControllerModeError("pairing_failed", message, detail)
+
+
 def start_failed(detail=None):
     return ControllerModeError(
         "start_failed",

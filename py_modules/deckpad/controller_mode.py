@@ -9,6 +9,8 @@ import asyncio
 import logging
 
 from . import errors
+from .hosts import PairedHosts
+from .pairing import PairingMode
 from .peripheral import Peripheral
 
 log = logging.getLogger("deckpad.controller_mode")
@@ -23,8 +25,9 @@ STOP_TIMEOUT = 5.0
 
 
 class ControllerMode:
-    def __init__(self, on_change=None, start_timeout=START_TIMEOUT, stop_timeout=STOP_TIMEOUT):
+    def __init__(self, on_change=None, start_timeout=START_TIMEOUT, stop_timeout=STOP_TIMEOUT, paired_hosts=None):
         self._on_change = on_change
+        self._paired_hosts = paired_hosts if paired_hosts is not None else PairedHosts()
         self._start_timeout = start_timeout
         self._stop_timeout = stop_timeout
         self._lock = asyncio.Lock()
@@ -32,12 +35,14 @@ class ControllerMode:
         self._error = None
         self._peripheral = None
         self._closed = False
+        self._pairing = PairingMode(on_change=self._changed, on_paired=self._paired_hosts.add)
 
     def snapshot(self):
         return {
             "enabled": self._status == ON,
             "status": self._status,
             "error": self._error.to_dict() if self._error else None,
+            "pairing": self._pairing.snapshot(),
         }
 
     async def set_enabled(self, enabled):
@@ -53,6 +58,16 @@ class ControllerMode:
                 await self._changed()
         return self.snapshot()
 
+    async def set_pairing_mode(self, enabled):
+        """Open or close Pairing Mode. It only exists while Controller Mode is on; otherwise this does nothing."""
+        async with self._lock:
+            if self._status == ON:
+                if enabled:
+                    await self._pairing.open()
+                else:
+                    await self._pairing.close()
+        return self.snapshot()
+
     def shutdown(self):
         """Return the Deck to ordinary SteamOS Bluetooth behaviour immediately, for plugin unload.
 
@@ -63,6 +78,7 @@ class ControllerMode:
         a round trip.
         """
         self._closed = True
+        self._pairing.detach()
         if self._peripheral is not None:
             self._peripheral.close()
             self._peripheral = None
@@ -72,7 +88,7 @@ class ControllerMode:
     async def _start(self):
         self._error = None
         await self._set_status(STARTING)
-        peripheral = Peripheral()
+        peripheral = Peripheral(listener=self._pairing, paired_hosts=self._paired_hosts)
         self._peripheral = peripheral
         try:
             await asyncio.wait_for(peripheral.start(), self._start_timeout)
@@ -88,6 +104,7 @@ class ControllerMode:
                 peripheral.close()
                 return
             log.info("Controller Mode on")
+            self._pairing.attach(peripheral)
             await self._set_status(ON)
             return
         await self._set_status(OFF)
@@ -99,6 +116,7 @@ class ControllerMode:
         self._error = error
 
     async def _stop(self):
+        self._pairing.detach()
         await self._set_status(STOPPING)
         peripheral, self._peripheral = self._peripheral, None
         try:

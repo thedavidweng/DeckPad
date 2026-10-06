@@ -17,10 +17,16 @@ def _offset(options):
     return int(offset.value) if isinstance(offset, Variant) else 0
 
 
+def _device(options):
+    device = options.get("device")
+    return device.value if isinstance(device, Variant) else None
+
+
 class Descriptor(ServiceInterface):
     def __init__(self, characteristic, index, uuid, flags, value):
         super().__init__("org.bluez.GattDescriptor1")
         self.path = "%s/desc%d" % (characteristic.path, index)
+        self._application = characteristic.application
         self._characteristic_path = characteristic.path
         self._uuid = uuid
         self._flags = list(flags)
@@ -40,6 +46,7 @@ class Descriptor(ServiceInterface):
 
     @method()
     def ReadValue(self, options: "a{sv}") -> "ay":
+        self._application.host_seen(_device(options))
         return self.value[_offset(options):]
 
 
@@ -47,6 +54,7 @@ class Characteristic(ServiceInterface):
     def __init__(self, service, index, uuid, flags, value):
         super().__init__("org.bluez.GattCharacteristic1")
         self.path = "%s/char%d" % (service.path, index)
+        self.application = service.application
         self._service_path = service.path
         self._uuid = uuid
         self._flags = list(flags)
@@ -79,11 +87,12 @@ class Characteristic(ServiceInterface):
 
     @method()
     def ReadValue(self, options: "a{sv}") -> "ay":
+        self.application.host_seen(_device(options))
         return self.value[_offset(options):]
 
     @method()
     def WriteValue(self, value: "ay", options: "a{sv}"):
-        pass
+        self.application.host_seen(_device(options))
 
     @method()
     def StartNotify(self):
@@ -98,6 +107,7 @@ class Service(ServiceInterface):
     def __init__(self, application, index, uuid):
         super().__init__("org.bluez.GattService1")
         self.path = "%s/service%d" % (application.path, index)
+        self.application = application
         self._uuid = uuid
         self.characteristics = []
 
@@ -122,9 +132,15 @@ class Application:
     it, so only GATT objects may live under this path (the agent and advertisements go elsewhere).
     """
 
-    def __init__(self, path):
+    def __init__(self, path, on_host=None):
         self.path = path
         self.services = []
+        self._on_host = on_host
+
+    def host_seen(self, device_path):
+        """BlueZ names the remote device in every read/write, which is how DeckPad knows its Hosts."""
+        if device_path and self._on_host is not None:
+            self._on_host(device_path)
 
     def add_service(self, uuid):
         service = Service(self, len(self.services), uuid)

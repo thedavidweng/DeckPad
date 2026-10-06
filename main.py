@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "py_
 
 import decky  # noqa: E402
 
-from deckpad import controller_mode  # noqa: E402
+from deckpad import controller_mode, peripheral  # noqa: E402
+from deckpad.hosts import PairedHosts  # noqa: E402
 
 STATE_EVENT = "controller_mode_state"
 
@@ -20,7 +21,10 @@ class Plugin:
     def __init__(self):
         # Controller Mode always starts off: after a reload or Decky restart the Deck is back to
         # ordinary SteamOS behaviour until the user turns it on again.
-        self._controller_mode = controller_mode.ControllerMode(on_change=_publish)
+        self._controller_mode = controller_mode.ControllerMode(
+            on_change=_publish,
+            paired_hosts=PairedHosts(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")),
+        )
 
     async def get_state(self):
         return self._controller_mode.snapshot()
@@ -28,10 +32,14 @@ class Plugin:
     async def set_controller_mode(self, enabled):
         return await self._controller_mode.set_enabled(bool(enabled))
 
+    async def set_pairing_mode(self, enabled):
+        return await self._controller_mode.set_pairing_mode(bool(enabled))
+
     async def _main(self):
         from dbus_fast.__version__ import __version__ as dbus_fast_version
 
         decky.logger.info("DeckPad backend started (dbus-fast %s)", dbus_fast_version)
+        await peripheral.restore_leftover_device_id()
 
     async def _unload(self):
         self._controller_mode.shutdown()
