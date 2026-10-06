@@ -10,6 +10,15 @@ from tests.support.plugin_case import PluginTestCase
 from tests.test_pairing_mode import eventually, eventually_async, settled
 
 
+def deckpad_work_in_progress():
+    """Coroutines of DeckPad's backend still scheduled on the event loop."""
+    return [
+        task.get_coro().__qualname__
+        for task in asyncio.all_tasks()
+        if not task.done() and "py_modules/deckpad/" in task.get_coro().cr_code.co_filename
+    ]
+
+
 class ConnectionsCase(PluginTestCase):
     async def pair(self, address=HOST_ADDRESS, name=HOST_NAME):
         """A Host pairs through Pairing Mode, the way a new user sets it up."""
@@ -258,6 +267,15 @@ class ForgettingAPairedHost(ConnectionsCase):
 
         self.assertEqual(state["hosts"], [])
         self.assertIsNone(self.bluez.advertisement)
+
+    async def test_unloading_while_a_removal_is_being_checked_leaves_nothing_running(self):
+        await self.bluez.remove_device(self.device)
+        await asyncio.sleep(0.05)
+
+        await self.plugin._unload()
+        await asyncio.sleep(0)
+
+        self.assertEqual(deckpad_work_in_progress(), [])
 
     async def test_the_deck_s_other_bluetooth_devices_are_never_removed(self):
         headphones = self.bluez.device("4C:87:5D:98:4A:A4", "Headphones")

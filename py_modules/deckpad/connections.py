@@ -185,6 +185,9 @@ class Connections:
             self._refresh_name(device)
 
     def detach(self):
+        """The session is ending: drop its background work without waiting, so it also serves unload."""
+        for task in list(self._tasks):
+            task.cancel()
         self._peripheral = None
         self._error = None
 
