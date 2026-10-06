@@ -112,12 +112,13 @@ known to work.
 | Troubleshooting diagnostics | Yes | Collected and saved; the copy button in Gaming Mode has not been checked |
 | Backend loading inside Decky's Python | Yes (reproduces the missing `xml.etree`) | Yes |
 | Store package (metadata, licenses, files the store CI zips) | Yes | The store-shaped zip was installed and smoke-tested |
+| Uninstall from Decky's settings | Yes | Yes, with a Host connected: its pairing was removed and DeckPad's files deleted |
 
 Not yet checked on hardware: how the QAM panel looks (agents drove it through the plugin API only),
 whether Steam's UI on the Deck reacts to presses during Controller Mode and whether the Controller
 Screen stops it (its route is registered on the Deck, but it has not been opened in Gaming Mode),
-Bluetooth headphones or other Bluetooth devices on the Deck while a Host is connected, suspend/resume,
-and uninstalling from Decky's settings. These are on the manual test list; see
+Bluetooth headphones or other Bluetooth devices on the Deck while a Host is connected, and
+suspend/resume. These are on the manual test list; see
 [Verification status](docs/verification.md).
 
 ### Hosts
