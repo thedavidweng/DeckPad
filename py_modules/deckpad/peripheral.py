@@ -96,6 +96,9 @@ class _NoListener:
     def pairing_requested(self, device):
         return False
 
+    def service_requested(self, device):
+        return False
+
     def device_changed(self, path, before, after):
         pass
 
@@ -104,7 +107,7 @@ class _NoListener:
 
 
 class Peripheral:
-    """`listener` is told about pairing requests (and decides them) and about Device1 changes."""
+    """`listener` decides pairing and service authorization requests, and is told about Device1 changes."""
 
     def __init__(self, listener=None, paired_hosts=()):
         self._listener = listener or _NoListener()
@@ -153,7 +156,7 @@ class Peripheral:
             await bluez.watch_devices(bus)
             self._load_devices(await bluez.managed_objects(bus))
 
-            agent = PairingAgent(self._allow_pairing)
+            agent = PairingAgent(self._allow_pairing, self._allow_service)
             bus.export(AGENT_PATH, agent)
             await bluez.register_agent(bus, AGENT_PATH, CAPABILITY)
             self._undo.append(("unregister agent", lambda: bluez.unregister_agent(bus, AGENT_PATH)))
@@ -316,6 +319,9 @@ class Peripheral:
         if allowed:
             self._hosts.add(path)
         return allowed
+
+    def _allow_service(self, path):
+        return self._listener.service_requested(self._device(path))
 
     def _device(self, path):
         return dict(self._devices.get(path, {}), path=path)

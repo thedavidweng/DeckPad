@@ -236,7 +236,7 @@ class ControllerMode:
 
         On failure everything is released again and the ControllerModeError is raised.
         """
-        peripheral = Peripheral(listener=_Listeners(self._pairing, self._connections), paired_hosts=self._paired_hosts)
+        peripheral = Peripheral(listener=_Listeners(self._pairing, self._connections, self._paired_hosts), paired_hosts=self._paired_hosts)
         watch = BluetoothWatch(lambda reason: self._session_lost(watch, reason))
         self._peripheral = peripheral
         self._watch = watch
@@ -407,14 +407,22 @@ class ControllerMode:
 
 
 class _Listeners:
-    """Pairing Mode decides pairing requests; both Pairing Mode and Connections follow Device1 changes."""
+    """Pairing Mode decides pairing requests; both Pairing Mode and Connections follow Device1 changes.
 
-    def __init__(self, pairing, connections):
+    A device may use the Deck's services while Pairing Mode accepts new Hosts, or if it is a Paired Host
+    (ADR-0005).
+    """
+
+    def __init__(self, pairing, connections, paired_hosts):
         self._pairing = pairing
         self._connections = connections
+        self._paired_hosts = paired_hosts
 
     def pairing_requested(self, device):
         return self._pairing.pairing_requested(device)
+
+    def service_requested(self, device):
+        return self._pairing.accepting or device.get("Address") in self._paired_hosts
 
     def device_changed(self, path, before, after):
         self._pairing.device_changed(path, before, after)

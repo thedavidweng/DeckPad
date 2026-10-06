@@ -125,6 +125,35 @@ class PairingOutsidePairingMode(PluginTestCase):
         self.assertEqual(len(self.bluez.applications), 1)
 
 
+class ServiceAuthorization(PluginTestCase):
+    """bluetoothd asks the default agent before a paired but untrusted device may use a local service."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        await self.plugin.set_controller_mode(True)
+
+    async def test_a_device_that_is_not_a_paired_host_is_refused(self):
+        stranger = self.bluez.device("4C:87:5D:98:4A:A4", "Someone's phone")
+        stranger.update(paired=True)
+
+        self.assertFalse(await self.bluez.device_uses_a_service(stranger.path))
+
+    async def test_a_paired_host_is_allowed(self):
+        await self.plugin.set_pairing_mode(True)
+        device = await self.bluez.host_connects()
+        await self.bluez.host_pairs(device)
+        await settled(self.plugin, "paired")
+        await self.plugin.set_pairing_mode(False)
+
+        self.assertTrue(await self.bluez.device_uses_a_service(device))
+
+    async def test_a_host_pairing_in_pairing_mode_is_allowed(self):
+        await self.plugin.set_pairing_mode(True)
+        device = await self.bluez.host_connects()
+
+        self.assertTrue(await self.bluez.device_uses_a_service(device))
+
+
 class PairingFailures(PluginTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()

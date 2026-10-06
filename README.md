@@ -188,7 +188,8 @@ of DeckPad would work without it.
   management interface, and restores the previous value when Controller Mode turns off or after a crash.
   This also applies to other Bluetooth LE connections the Deck makes during that time.
 - **Pairing agent.** While Controller Mode is on, DeckPad answers pairing requests that come from
-  Hosts. It accepts them only while Pairing Mode is open. Pairing you start from Steam's Bluetooth
+  Hosts. It accepts them only while Pairing Mode is open, and lets only Hosts paired through DeckPad
+  use the Deck's Bluetooth services without asking. Pairing you start from Steam's Bluetooth
   settings still goes through Steam as usual. When Controller Mode turns off, DeckPad unregisters its
   agent and Bluetooth hands pairing requests back to Steam.
 

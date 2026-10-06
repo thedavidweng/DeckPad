@@ -11,13 +11,14 @@ class PairingAgent(ServiceInterface):
     """Accepts Just Works pairing only while Pairing Mode is open, and refuses it at any other time.
 
     While this agent is the default, it also receives pairing requests a user starts from Steam's
-    Bluetooth settings, so it must never accept outside an explicit Pairing Mode. `allow_pairing` is
-    called with the device's object path and answers synchronously.
+    Bluetooth settings, so it must never accept outside an explicit Pairing Mode. `allow_pairing` and
+    `allow_service` are called with the device's object path and answer synchronously.
     """
 
-    def __init__(self, allow_pairing):
+    def __init__(self, allow_pairing, allow_service):
         super().__init__("org.bluez.Agent1")
         self._allow_pairing = allow_pairing
+        self._allow_service = allow_service
 
     def _authorize(self, device):
         if not self._allow_pairing(device):
@@ -54,9 +55,10 @@ class PairingAgent(ServiceInterface):
 
     @method()
     def AuthorizeService(self, device: "o", uuid: "s"):
-        # BlueZ only asks this for devices that are already paired but not trusted. Accepting keeps
-        # the user's existing peripherals working while our agent is the default.
-        pass
+        # BlueZ asks this only for paired but untrusted devices, so the user's trusted peripherals never
+        # get here. Only Paired Hosts, or a Host pairing in Pairing Mode, are let through (ADR-0005).
+        if not self._allow_service(device):
+            raise DBusError(_REJECTED, "Not a Paired Host")
 
     @method()
     def Cancel(self):

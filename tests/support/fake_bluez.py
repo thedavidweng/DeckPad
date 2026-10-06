@@ -247,6 +247,24 @@ class FakeBluez:
             device.update(connected=False)
         return ok
 
+    async def device_uses_a_service(self, path, uuid="00001812-0000-1000-8000-00805f9b34fb"):
+        """A paired but untrusted device connects to a local profile; bluetoothd asks the default agent
+        with AuthorizeService. Returns whether the agent allowed it (Steam's agent always does)."""
+        sender, agent_path = self.default_agent
+        if (sender, agent_path) == STEAM_AGENT:
+            return True
+        reply = await self.bus.call(
+            Message(
+                destination=sender,
+                path=agent_path,
+                interface="org.bluez.Agent1",
+                member="AuthorizeService",
+                signature="os",
+                body=[path, uuid],
+            )
+        )
+        return reply.message_type == MessageType.METHOD_RETURN
+
     async def remove_device(self, path):
         """The bond is removed on the Deck (DeckPad's Forget, or Steam's Bluetooth settings)."""
         device = self.devices.pop(path)
