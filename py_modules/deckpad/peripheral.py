@@ -29,7 +29,7 @@ _REPORT_TYPE_OUTPUT = 0x02
 _DEVICE_KEYS = ("Address", "Alias", "Name", "Connected", "Paired")
 
 # Fixed ATT handles for DeckPad's services. Without them bluetoothd puts each registration above the
-# highest handle it has ever used, so every Controller Mode session moves the services. Bonded Hosts
+# highest handle it has ever used, so every Controller Mode session moves the services. Paired Hosts
 # keep their GATT cache and trust the Database Hash, which bluetoothd 5.83 stops updating once its
 # handles pass 1023 (one writev with an iovec per handle), so they would keep using handles that no
 # longer exist. The handles stay below 1024 and are spaced so the HID service can grow.

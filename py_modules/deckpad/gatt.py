@@ -60,7 +60,7 @@ class Characteristic(ServiceInterface):
         self._flags = list(flags)
         self.value = bytes(value)
         # BlueZ calls StartNotify/StopNotify only on CCCD writes and app (re-)registration, never on
-        # a bonded Host's disconnect or plain reconnect, so only those two calls may change this flag.
+        # a Paired Host's disconnect or plain reconnect, so only those two calls may change this flag.
         self.notifying = False
         self.descriptors = []
 
