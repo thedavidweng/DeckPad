@@ -8,61 +8,31 @@ import {
   showModal,
   staticClasses,
 } from "@decky/ui";
-import { addEventListener, callable, definePlugin, removeEventListener } from "@decky/api";
+import { definePlugin, routerHook } from "@decky/api";
 import { useEffect, useState } from "react";
 import { Troubleshooting } from "./troubleshooting";
 import { FaGamepad } from "react-icons/fa";
-
-type Status = "off" | "starting" | "on" | "stopping" | "recovering";
-
-interface ControllerModeError {
-  code: string;
-  title: string;
-  message: string;
-  detail: string | null;
-}
-
-interface ControlsState {
-  available: boolean;
-  message: string | null;
-}
-
-type PairingStatus = "closed" | "discoverable" | "pairing" | "paired" | "failed";
-
-interface PairingState {
-  status: PairingStatus;
-  name: string | null;
-  seconds_left: number | null;
-  host: { address: string; name: string } | null;
-  error: ControllerModeError | null;
-}
-
-interface PairedHost {
-  address: string;
-  name: string | null;
-  connected: boolean;
-}
-
-type ConnectionStatus = "idle" | "waiting" | "connected" | "paused";
-
-interface ControllerModeState {
-  enabled: boolean;
-  status: Status;
-  error: ControllerModeError | null;
-  pairing: PairingState;
-  hosts: PairedHost[];
-  connection: ConnectionStatus;
-  controls: ControlsState | null;
-}
-
-const STATE_EVENT = "controller_mode_state";
-
-const getState = callable<[], ControllerModeState>("get_state");
-const setControllerMode = callable<[enabled: boolean], ControllerModeState>("set_controller_mode");
-const setPairingMode = callable<[enabled: boolean], ControllerModeState>("set_pairing_mode");
-const disconnectHost = callable<[address: string], ControllerModeState>("disconnect_host");
-const forgetHost = callable<[address: string], ControllerModeState>("forget_host");
-const allowReconnect = callable<[], ControllerModeState>("allow_reconnect");
+import {
+  ControllerModeState,
+  PairedHost,
+  PairingState,
+  Status,
+  allowReconnect,
+  connectedHostName,
+  disconnectHost,
+  forgetHost,
+  hostNames,
+  setControllerMode,
+  setPairingMode,
+  useControllerModeState,
+} from "./backend";
+import {
+  CONTROLLER_SCREEN_ROUTE,
+  ControllerScreen,
+  closeControllerScreen,
+  openControllerScreen,
+  useControllerScreenOpen,
+} from "./controller_screen";
 
 const NOT_RESPONDING = "Reload DeckPad from Decky's settings, then try again.";
 
@@ -73,20 +43,6 @@ const DESCRIPTIONS: Record<Status, string> = {
   stopping: "Turning off…",
   recovering: "Bluetooth stopped. Controller Mode resumes as soon as it is back.",
 };
-
-function useControllerModeState(): ControllerModeState | null {
-  const [state, setState] = useState<ControllerModeState | null>(null);
-
-  useEffect(() => {
-    const listener = addEventListener<[ControllerModeState]>(STATE_EVENT, setState);
-    getState().then(setState).catch(() => setState(null));
-    return () => {
-      removeEventListener(STATE_EVENT, listener);
-    };
-  }, []);
-
-  return state;
-}
 
 // The backend reports the time left when the state changes; count down locally in between.
 function useCountdown(secondsLeft: number | null): number | null {
@@ -192,43 +148,38 @@ function PairingRows({ pairing, onRequestError }: { pairing: PairingState; onReq
   }
 }
 
-// Hosts whose name Bluetooth has not learned yet get a numbered placeholder instead of an address.
-function hostNames(hosts: PairedHost[]): Map<string, string> {
-  const names = new Map<string, string>();
-  let unnamed = 0;
-  for (const host of hosts) {
-    if (host.name) {
-      names.set(host.address, host.name);
-    } else {
-      unnamed += 1;
-      names.set(host.address, unnamed === 1 ? "Unnamed device" : `Unnamed device ${unnamed}`);
-    }
-  }
-  return names;
-}
-
 function ConnectionRows({
   state,
-  names,
+  screenOpen,
   onRequestError,
 }: {
   state: ControllerModeState;
-  names: Map<string, string>;
+  screenOpen: boolean;
   onRequestError: () => void;
 }) {
-  // The backend keeps one Connected Host at a time.
-  const connected = state.hosts.find((host) => host.connected);
-
   switch (state.connection) {
     case "connected":
       return (
-        <PanelSectionRow>
-          <Field
-            label={`Connected to ${connected ? names.get(connected.address) : "a paired device"}`}
-            description="Your controls are going to this device."
-            focusable
-          />
-        </PanelSectionRow>
+        <>
+          <PanelSectionRow>
+            <Field
+              label={`Connected to ${connectedHostName(state) ?? "a paired device"}`}
+              description="Your controls are going to this device."
+              focusable
+            />
+          </PanelSectionRow>
+          {!screenOpen && (
+            <PanelSectionRow>
+              <ButtonItem
+                layout="below"
+                description="A full-screen view that keeps Steam on this Deck from reacting to your presses."
+                onClick={openControllerScreen}
+              >
+                Open Controller Screen
+              </ButtonItem>
+            </PanelSectionRow>
+          )}
+        </>
       );
     case "waiting":
       return (
@@ -310,6 +261,7 @@ function PairedHostRows({
 
 function Content() {
   const state = useControllerModeState();
+  const screenOpen = useControllerScreenOpen();
   const [requestError, setRequestError] = useState<string | null>(null);
 
   if (!state) {
@@ -348,7 +300,16 @@ function Content() {
             onChange={onChange}
           />
         </PanelSectionRow>
-        {state.status === "on" && <ConnectionRows state={state} names={names} onRequestError={onRequestError} />}
+        {screenOpen && (
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={closeControllerScreen}>
+              Close Controller Screen
+            </ButtonItem>
+          </PanelSectionRow>
+        )}
+        {state.status === "on" && (
+          <ConnectionRows state={state} screenOpen={screenOpen} onRequestError={onRequestError} />
+        )}
         {state.status === "on" && <PairingRows pairing={state.pairing} onRequestError={onRequestError} />}
         {state.status === "on" && state.controls && !state.controls.available && (
           <PanelSectionRow>
@@ -374,9 +335,15 @@ function Content() {
   );
 }
 
-export default definePlugin(() => ({
-  name: "DeckPad",
-  titleView: <div className={staticClasses.Title}>DeckPad</div>,
-  content: <Content />,
-  icon: <FaGamepad />,
-}));
+export default definePlugin(() => {
+  routerHook.addRoute(CONTROLLER_SCREEN_ROUTE, ControllerScreen, { exact: true });
+  return {
+    name: "DeckPad",
+    titleView: <div className={staticClasses.Title}>DeckPad</div>,
+    content: <Content />,
+    icon: <FaGamepad />,
+    onDismount() {
+      routerHook.removeRoute(CONTROLLER_SCREEN_ROUTE);
+    },
+  };
+});
