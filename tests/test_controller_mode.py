@@ -4,6 +4,9 @@ and observed from BlueZ's side of the system bus."""
 import asyncio
 import unittest
 
+from deckpad.bluetooth_watch import BluetoothWatch
+from deckpad.peripheral import Peripheral
+
 from tests.support.fake_bluez import STEAM_AGENT
 from tests.support.plugin_case import PluginTestCase
 
@@ -131,6 +134,32 @@ class UnloadingThePlugin(PluginTestCase):
         await asyncio.wait_for(self.plugin._unload(), 20)
 
         self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
+
+class ReleasingASessionTwice(PluginTestCase):
+    """Unload can release a session that a start still finishing then releases again."""
+
+    async def test_a_peripheral_can_be_closed_again(self):
+        peripheral = Peripheral()
+        await peripheral.start()
+
+        peripheral.close()
+        peripheral.close()
+        await peripheral.stop()
+
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
+    async def test_a_bluetooth_watch_can_be_stopped_again(self):
+        lost = []
+        watch = BluetoothWatch(lost.append)
+        await watch.start()
+
+        watch.stop()
+        watch.stop()
+        await self.bluez.restart()
+        await asyncio.sleep(0.05)
+
+        self.assertEqual(lost, [])
 
 
 class BluetoothNotRunning(PluginTestCase):

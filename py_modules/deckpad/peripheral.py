@@ -296,7 +296,7 @@ class Peripheral:
         """Drop the bus connection immediately; BlueZ then releases anything still registered.
 
         Connected Hosts are asked to disconnect first, without waiting for replies, so this stays
-        safe to call when the event loop can no longer run (plugin unload).
+        safe to call when the event loop can no longer run (plugin unload). Safe to call more than once.
         """
         self._undo.clear()
         if self._bus is not None:

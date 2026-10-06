@@ -54,6 +54,7 @@ class BluetoothWatch:
             raise errors.bluetooth_off()
 
     def stop(self):
+        """Synchronous and safe to call more than once."""
         self._fired = True
         if self._bus is not None:
             self._bus.disconnect()
