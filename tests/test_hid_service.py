@@ -65,5 +65,15 @@ class AHostDiscoveringTheDeck(PluginTestCase):
         self.assertTrue(services[0][1]["Primary"])
 
 
+class AnotherAppHoldingDeckPadsHandles(PluginTestCase):
+    async def test_controller_mode_still_starts_with_handles_bluez_picks(self):
+        self.bluez.occupy_handles(0x01F0, 0x0250)
+
+        state = await self.plugin.set_controller_mode(True)
+
+        self.assertEqual(state["status"], "on")
+        self.assertEqual(await self.bluez.host_reads("2a4b"), XBOX_1914_REPORT_MAP)
+
+
 if __name__ == "__main__":
     unittest.main()

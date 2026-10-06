@@ -117,6 +117,24 @@ class AConnectedHostReceivesTheDeckControls(InputCase):
         self.assertGreaterEqual(sent, 0.5 * elapsed / FALLBACK_REPORT_INTERVAL)
 
 
+class AHostReturningInALaterSession(InputCase):
+    """A bonded Host keeps the GATT database it discovered and reuses it when it reconnects. On the Deck,
+    bluetoothd's Database Hash stops updating once its handles pass 1023, so the Host never learns of
+    a new layout; the HID service must come back at the handles the Host already knows."""
+
+    async def test_reports_reach_it_after_controller_mode_is_turned_off_and_on(self):
+        device = await self.connect_host()
+        cached = self.bluez.handle_of(self.bluez.input_report_path())
+        await self.plugin.set_controller_mode(False)
+
+        await self.plugin.set_controller_mode(True)
+        await self.bluez.host_reconnects(device)
+        await self.bluez.host_subscribes(handle=cached)
+        delivered = await self.press(deck_state_report("A"), until=lambda: A_HELD in self.bluez.gamepad_reports())
+
+        self.assertTrue(delivered)
+
+
 class NobodyListening(InputCase):
     async def test_nothing_is_sent_before_the_host_subscribes(self):
         await self.connect_host(subscribe=False)
