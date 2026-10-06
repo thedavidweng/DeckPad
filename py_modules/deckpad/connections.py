@@ -7,7 +7,9 @@ and paused. Disconnect pauses reconnecting until the user allows it again or the
 session: otherwise a Host that auto-connects would come straight back.
 BlueZ offers no directed advertising, so any Paired Host in range may be the one that reconnects.
 Advertising stops while a Host is connected, because a connectable advertisement during a connection
-can make the controller drop the link.
+can make the controller drop the link. There is one Connected Host at a time: a Host that connects or
+pairs while another is connected (only possible through Pairing Mode's advertisement) takes over, and
+the previous one is disconnected.
 
 Only Paired Hosts (the `PairedHosts` record) are ever listed, disconnected or removed; the Deck's other
 Bluetooth devices are left alone.
@@ -195,10 +197,24 @@ class Connections:
         if after.get("Address") not in self._paired_hosts:
             return
         renamed = self._refresh_name(after)
-        if before.get("Connected") != after.get("Connected"):
+        if _connected_and_paired(after) and not _connected_and_paired(before):
+            self._spawn(self._take_over(after))
+        elif before.get("Connected") != after.get("Connected"):
             self._spawn(self._update())
         elif renamed:
             self._spawn(self._on_change())
+
+    async def _take_over(self, device):
+        """One Connected Host at a time: the Host that connected (or just paired) last gets the controls."""
+        peripheral = self._peripheral
+        others = [d for d in self._connected_hosts() if d["path"] != device["path"]]
+        for other in others:
+            log.info("%s connected; disconnecting %s", device.get("Address"), other.get("Address"))
+            try:
+                await peripheral.disconnect_device(other["path"])
+            except Exception as e:
+                log.warning("Could not disconnect %s: %r", other.get("Address"), e)
+        await self._update()
 
     async def _update(self):
         await self.reconcile()
@@ -220,6 +236,10 @@ class Connections:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+
+def _connected_and_paired(device):
+    return bool(device.get("Connected") and device.get("Paired"))
 
 
 async def _devices(bus, address):

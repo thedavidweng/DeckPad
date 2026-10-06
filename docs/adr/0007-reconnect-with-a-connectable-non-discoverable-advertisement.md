@@ -15,3 +15,4 @@ BlueZ's D-Bus API has no directed advertising, so DeckPad cannot pick which Pair
 - While waiting, any LE central can connect to the Deck. A device that is not a Paired Host cannot pair, because DeckPad's agent refuses outside Pairing Mode (ADR-0005), and HID reads need encryption.
 - A Host that the user disconnected on the Host side (for example with `bluetoothctl disconnect`) typically does not reconnect by itself. The user connects again from the Host's Bluetooth settings, which works because the advertisement is up.
 - With several Paired Hosts in range, the first one to connect becomes the Connected Host. Supporting several simultaneous Hosts is out of scope.
+- A second Host can only connect while one is connected through Pairing Mode's advertisement. DeckPad keeps one Connected Host: the Host that connects or finishes pairing last takes over, and the previous one is disconnected (without pausing reconnects).

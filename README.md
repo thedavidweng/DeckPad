@@ -134,7 +134,8 @@ test list.
 ## Known limitations
 
 - **One Host at a time.** With several Paired Hosts in range, the first one to connect wins; DeckPad
-  cannot choose which one reconnects.
+  cannot choose which one reconnects. If you pair another Host while one is connected, the newly paired
+  Host takes over and the previous one is disconnected (it can reconnect once the Deck is free again).
 - **Reconnecting depends on the Host.** A Host disconnected from its own side (for example from its
   Bluetooth menu) usually does not reconnect by itself; connect again from the Host's Bluetooth
   settings. While Controller Mode is on and no Host is connected, the Deck sends a connectable but

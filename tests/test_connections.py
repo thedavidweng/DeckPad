@@ -307,6 +307,24 @@ class WithSeveralPairedHosts(ConnectionsCase):
         )
         self.assertFalse(self.bluez.devices[first].connected)
 
+    async def test_a_host_paired_while_another_is_connected_takes_over(self):
+        await self.plugin.set_controller_mode(True)
+        first = await self.pair("AA:BB:CC:DD:EE:01", "living-room-pc")
+        await when(self.plugin, lambda s: s["connection"] == "connected")
+
+        second = await self.pair()
+        state = await when(self.plugin, lambda s: [h["connected"] for h in s["hosts"]] == [True, False])
+
+        self.assertEqual(
+            state["hosts"],
+            [
+                {"address": HOST_ADDRESS, "name": HOST_NAME, "connected": True},
+                {"address": "AA:BB:CC:DD:EE:01", "name": "living-room-pc", "connected": False},
+            ],
+        )
+        self.assertEqual(self.bluez.disconnect_requests, [first])
+        self.assertTrue(self.bluez.devices[second].connected)
+
 
 async def when(plugin, predicate, timeout=2.0):
     """The backend state once `predicate` holds for it, or the last state seen at the timeout."""

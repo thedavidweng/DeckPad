@@ -216,14 +216,15 @@ function ConnectionRows({
   names: Map<string, string>;
   onRequestError: () => void;
 }) {
-  const connected = state.hosts.filter((host) => host.connected);
+  // The backend keeps one Connected Host at a time.
+  const connected = state.hosts.find((host) => host.connected);
 
   switch (state.connection) {
     case "connected":
       return (
         <PanelSectionRow>
           <Field
-            label={`Connected to ${connected.map((host) => names.get(host.address)).join(", ")}`}
+            label={`Connected to ${connected ? names.get(connected.address) : "a paired device"}`}
             description="Your controls are going to this device."
             focusable
           />
