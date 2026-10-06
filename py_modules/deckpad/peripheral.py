@@ -28,12 +28,21 @@ _REPORT_TYPE_OUTPUT = 0x02
 
 _DEVICE_KEYS = ("Address", "Alias", "Name", "Connected", "Paired")
 
+# Fixed ATT handles for DeckPad's services. Without them bluetoothd puts each registration above the
+# highest handle it has ever used, so every Controller Mode session moves the services. Bonded Hosts
+# keep their GATT cache and trust the Database Hash, which bluetoothd 5.83 stops updating once its
+# handles pass 1023 (one writev with an iovec per handle), so they would keep using handles that no
+# longer exist. The handles stay below 1024 and are spaced so the HID service can grow.
+HID_HANDLE = 0x0200
+BATTERY_HANDLE = 0x0230
+DEVICE_INFORMATION_HANDLE = 0x0240
+
 
 def build_application(on_host=None):
     """HID-over-GATT (HOGP) gamepad for the Controller Identity, plus Battery and Device Information."""
     app = gatt.Application(APP_PATH, on_host)
 
-    hid = app.add_service(gatt.uuid16("1812"))
+    hid = app.add_service(gatt.uuid16("1812"), HID_HANDLE)
     # bcdHID 1.11, country 0, flags: NormallyConnectable.
     hid.add_characteristic(gatt.uuid16("2a4a"), ["encrypt-read"], bytes([0x11, 0x01, 0x00, 0x02]))
     hid.add_characteristic(gatt.uuid16("2a4b"), ["encrypt-read"], identity.REPORT_MAP)
@@ -53,10 +62,10 @@ def build_application(on_host=None):
     )
     rumble.add_descriptor(REPORT_REFERENCE, ["read"], bytes([identity.OUTPUT_REPORT_ID, _REPORT_TYPE_OUTPUT]))
 
-    battery = app.add_service(gatt.uuid16("180f"))
+    battery = app.add_service(gatt.uuid16("180f"), BATTERY_HANDLE)
     battery.add_characteristic(gatt.uuid16("2a19"), ["read", "notify"], bytes([100]))
 
-    dis = app.add_service(gatt.uuid16("180a"))
+    dis = app.add_service(gatt.uuid16("180a"), DEVICE_INFORMATION_HANDLE)
     dis.add_characteristic(gatt.uuid16("2a50"), ["read"], identity.PNP_ID)
     return app
 
@@ -154,7 +163,15 @@ class Peripheral:
             app.export(bus)
             self._gamepad_input = app.gamepad_input
             adapter_path = self._adapter_path
-            await bluez.register_application(bus, adapter_path, APP_PATH)
+            try:
+                await bluez.register_application(bus, adapter_path, APP_PATH)
+            except bluez.BluezError as e:
+                if e.service_unavailable:
+                    raise
+                # Another BlueZ client already holds those handles.
+                log.warning("Could not register at DeckPad's fixed GATT handles (%s); letting BlueZ pick them", e)
+                app.let_bluez_pick_handles()
+                await bluez.register_application(bus, adapter_path, APP_PATH)
             self._undo.append(
                 ("unregister application", lambda: bluez.unregister_application(bus, adapter_path, APP_PATH))
             )

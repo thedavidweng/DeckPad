@@ -104,11 +104,13 @@ class Characteristic(ServiceInterface):
 
 
 class Service(ServiceInterface):
-    def __init__(self, application, index, uuid):
+    def __init__(self, application, index, uuid, handle=0):
         super().__init__("org.bluez.GattService1")
         self.path = "%s/service%d" % (application.path, index)
         self.application = application
         self._uuid = uuid
+        # 0 lets bluetoothd pick the handle; it then writes the one it picked back here.
+        self.handle = handle
         self.characteristics = []
 
     def add_characteristic(self, uuid, flags, value):
@@ -123,6 +125,14 @@ class Service(ServiceInterface):
     @dbus_property(access=PropertyAccess.READ)
     def Primary(self) -> "b":
         return True
+
+    @dbus_property()
+    def Handle(self) -> "q":
+        return self.handle
+
+    @Handle.setter
+    def Handle(self, value: "q"):
+        self.handle = value
 
 
 class Application:
@@ -142,10 +152,14 @@ class Application:
         if device_path and self._on_host is not None:
             self._on_host(device_path)
 
-    def add_service(self, uuid):
-        service = Service(self, len(self.services), uuid)
+    def add_service(self, uuid, handle=0):
+        service = Service(self, len(self.services), uuid, handle)
         self.services.append(service)
         return service
+
+    def let_bluez_pick_handles(self):
+        for service in self.services:
+            service.handle = 0
 
     def _objects(self):
         for service in self.services:

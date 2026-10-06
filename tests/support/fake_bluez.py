@@ -5,6 +5,9 @@ It models only the contract DeckPad relies on, the way BlueZ 5.83 behaves on the
 - GattManager1.RegisterApplication calls back GetManagedObjects on the application and
   rejects one that exposes no GATT service.
 - Registrations are bound to the registering D-Bus connection and vanish with it.
+- Attribute handles are allocated the way bluetoothd's gatt-db does it: a service that asks for no
+  Handle goes after the highest handle ever used, so handles are never reused within one bluetoothd
+  run, and a requested Handle that overlaps a registered service fails the whole application.
 """
 
 import asyncio
@@ -22,6 +25,9 @@ HOST_NAME = "mbp2019"
 _FAILED = "org.bluez.Error.Failed"
 _ALREADY_EXISTS = "org.bluez.Error.AlreadyExists"
 _DOES_NOT_EXIST = "org.bluez.Error.DoesNotExist"
+
+# GAP, GATT, and bluetoothd's own DIS, then PipeWire's BLE-MIDI service, as on the Deck.
+CORE_LAST_HANDLE = 0x0017
 
 
 class _Adapter(ServiceInterface):
@@ -126,6 +132,11 @@ class FakeBluez:
         self.calls = []
         # (characteristic path, value) for every GATT notification the application sent, in order.
         self.notifications = []
+        self.last_handle = CORE_LAST_HANDLE
+        # Attribute handle of every registered GATT object, by application key and object path.
+        # Services map to their declaration, characteristics to their value handle.
+        self.handles = {}
+        self._ranges = {}
 
     @property
     def default_agent(self):
@@ -276,9 +287,23 @@ class FakeBluez:
         path = self.input_report_path()
         return [value for p, value in self.notifications if p == path]
 
-    async def host_subscribes(self, path=None):
-        """The Host writes the input report's CCCD; bluetoothd turns that into StartNotify."""
+    def handle_of(self, path):
+        """The ATT handle a Host discovers for a registered GATT object."""
+        ((_key, handles),) = self.handles.items()
+        return handles[path]
+
+    async def host_subscribes(self, path=None, handle=None):
+        """The Host writes the input report's CCCD; bluetoothd turns that into StartNotify.
+
+        A Host that kept its GATT cache from an earlier connection names the report by `handle`. If no
+        registered characteristic has that handle any more, bluetoothd answers Invalid Handle.
+        """
         ((sender, _app),) = self.applications.keys()
+        if handle is not None:
+            by_handle = {h: p for p, h in self.handles[(sender, _app)].items()}
+            if handle not in by_handle:
+                raise RuntimeError("ATT Invalid Handle 0x%04x" % handle)
+            path = by_handle[handle]
         reply = await self.bus.call(
             Message(
                 destination=sender,
@@ -367,7 +392,7 @@ class FakeBluez:
             self.bus.send(Message.new_method_return(msg))
 
     def _drop_client(self, sender):
-        for table in (self.agents, self.applications, self.advertisements):
+        for table in (self.agents, self.applications, self.advertisements, self.handles, self._ranges):
             for key in [k for k in table if k[0] == sender]:
                 del table[key]
         self.default_agents = [a for a in self.default_agents if a[0] != sender]
@@ -417,13 +442,58 @@ class FakeBluez:
         objects = reply.body[0]
         if not any("org.bluez.GattService1" in ifaces for ifaces in objects.values()):
             return _FAILED, "No valid service object found"
-        self.applications[key] = _plain(objects)
+        objects = _plain(objects)
+        allocated = self._allocate_handles(objects)
+        if allocated is None:
+            return _FAILED, "Failed to create GATT service entry in local database"
+        self.handles[key], self._ranges[key] = allocated
+        self.applications[key] = objects
+
+    def _allocate_handles(self, objects):
+        taken = [r for ranges in self._ranges.values() for r in ranges]
+        handles, ranges = {}, []
+        last_handle = self.last_handle
+        for service in sorted(p for p, i in objects.items() if "org.bluez.GattService1" in i):
+            chars = sorted(p for p, i in objects.items() if i.get("org.bluez.GattCharacteristic1", {}).get("Service") == service)
+            layout = []
+            for char in chars:
+                descs = sorted(
+                    p for p, i in objects.items() if i.get("org.bluez.GattDescriptor1", {}).get("Characteristic") == char
+                )
+                flags = objects[char]["org.bluez.GattCharacteristic1"]["Flags"]
+                # bluetoothd adds the CCCD itself for notify/indicate, right after the value.
+                ccc = 1 if {"notify", "indicate"} & set(flags) else 0
+                layout.append((char, ccc, descs))
+            count = 1 + sum(2 + ccc + len(descs) for _c, ccc, descs in layout)
+            start = objects[service]["org.bluez.GattService1"].get("Handle") or last_handle + 1
+            end = start + count - 1
+            if end > 0xFFFF or any(start <= e and s <= end for s, e in taken + ranges):
+                return None
+            handles[service] = start
+            next_handle = start + 1
+            for char, ccc, descs in layout:
+                handles[char] = next_handle + 1
+                next_handle += 2 + ccc
+                for desc in descs:
+                    handles[desc] = next_handle
+                    next_handle += 1
+            ranges.append((start, end))
+            last_handle = max(last_handle, end)
+        self.last_handle = last_handle
+        return handles, ranges
+
+    def occupy_handles(self, start, end, owner=":other.app"):
+        """Another BlueZ client (Steam, PipeWire, another plugin) holds a service in this handle range."""
+        self._ranges[(owner, "/other/app")] = [(start, end)]
+        self.last_handle = max(self.last_handle, end)
 
     async def _unregister_application(self, sender, msg):
         if self.hang_unregister:
             await asyncio.sleep(3600)
         key = (sender, msg.body[0])
         self.calls.append(("UnregisterApplication", msg.body[0]))
+        self.handles.pop(key, None)
+        self._ranges.pop(key, None)
         if self.applications.pop(key, None) is None:
             return _DOES_NOT_EXIST, "Does Not Exist"
 
