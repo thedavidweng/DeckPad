@@ -1,12 +1,46 @@
 # Verification status
 
-What has been checked on real hardware, and what is still open. The README's
-[Compatibility](../README.md#compatibility) section lists the tested Deck, Decky and Host versions and
-what was verified for each area. This page tracks the open unknowns behind those results, so a decision
-record can point at one place.
+What has been checked on real hardware, and what is still open, so a decision record can point at one
+place.
 
-"Verified on hardware" means the Steam Deck LCD (SteamOS 3.8.28 Stable, BlueZ 5.83, Decky Loader v3.2.9)
-with an Arch Linux laptop (BlueZ 5.87) as the Host. Anything else is unverified.
+## Test setup
+
+"Verified on hardware" means this setup. Anything else is unverified.
+
+| | Version |
+|---|---|
+| Steam Deck | LCD model (Realtek RTL8822CE Bluetooth), SteamOS 3.8.28 Stable (build 20260922.1), kernel 6.18, BlueZ 5.83 |
+| Decky Loader | v3.2.9 (embedded Python 3.11.7) |
+| Host | Arch Linux laptop, BlueZ 5.87, paired with `bluetoothctl` |
+
+## What was verified, and how
+
+| Area | Automated tests (fake BlueZ on a private D-Bus) | On the real Deck with the Linux Host |
+|---|---|---|
+| Controller Mode on/off, Decky reload and restart | Yes | Yes, including 16 and 10 on/off cycles; nothing left registered afterwards |
+| Pairing from the Host's normal Bluetooth flow | Yes | Yes; the Host builds a `045E:0B13` gamepad bound to the `hid-microsoft` driver |
+| Pairing timeout, cancel, and stale-pairing error | Yes | Timeout and stale-pairing error, yes |
+| Reconnect without re-pairing after Controller Mode off/on | Yes | Yes; the Host reconnected by itself in about 2-11 s and kept receiving input |
+| Disconnect, Allow Reconnecting, Forget | Yes | Yes |
+| Deck controls to Gamepad Reports (mapping, send-on-change, pacing) | Yes | Report path yes; the Host's capabilities match the README's controls table. A person pressed every core control with the Controller Screen open, and each lit up correctly there; a button-by-button check on the Host's side has not been done |
+| Report rate and latency | Pacing logic only | About 42-45 reports/s with no backlog once the 18.75 ms interval is in place; about 18-25 reports/s at the Host's initial 48.75 ms |
+| Bluetooth restart, adapter off and on | Yes | Yes; Controller Mode resumed and the Host reconnected |
+| Troubleshooting diagnostics | Yes | Collected and saved; the copy button in Gaming Mode has not been checked |
+| Backend loading inside Decky's Python | Yes (reproduces the missing `xml.etree`) | Yes |
+| Store package (metadata, licenses, files the store CI zips) | Yes | The store-shaped zip was installed and smoke-tested |
+| Uninstall from Decky's settings | Yes | Yes, with a Host connected: its pairing was removed and DeckPad's files deleted |
+
+Not yet checked on hardware: how the QAM panel looks (agents drove it through the plugin API only), the
+copy button in Troubleshooting, and the open unknowns below.
+
+## Hosts
+
+| Host | Status |
+|---|---|
+| Linux with BlueZ (Arch Linux, BlueZ 5.87) | Tested: pairs, reconnects, receives input as an Xbox controller |
+| Windows 10/11, macOS, iOS/iPadOS, Android, ChromeOS | Untested |
+| Game consoles, smart TVs | Untested |
+| Steam Deck OLED (as the controller) | Untested |
 
 ## Open unknowns
 

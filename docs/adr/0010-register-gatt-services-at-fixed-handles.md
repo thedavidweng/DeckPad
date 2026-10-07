@@ -18,6 +18,6 @@ On reconnect, bluetoothd sent Service Changed before the Host's GATT client was 
 ## Consequences
 
 - Verified on the Deck with the Linux Host: across three Controller Mode off/on cycles the Host reconnected by itself, subscribed, and received input each time, with the HID service at `0x0200-0x020f` in every session.
-- A Host that bonded with a DeckPad build from before this change, on a bluetoothd whose hash had already frozen, keeps its stale cache. It must remove the Deck and pair again once; restarting Bluetooth on the Deck also clears the frozen hash. The README lists this as a known limitation.
+- A Host that bonded with a DeckPad build from before this change, on a bluetoothd whose hash had already frozen, keeps its stale cache. It must remove the Deck and pair again once; restarting Bluetooth on the Deck also clears the frozen hash. `docs/troubleshooting.md` covers this under "Connected but no input".
 - The fallback (`Handle` 0) brings the original problem back for that session. It only happens if another GATT application on the Deck claims the same handles.
 - Adding attributes to the HID service must keep it inside `0x0200-0x022f`, below the Battery service.
