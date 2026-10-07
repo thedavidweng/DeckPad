@@ -125,6 +125,8 @@ message: [docs/troubleshooting.md](docs/troubleshooting.md).
   ```
 - Website: `site/`, deployed to GitHub Pages by `.github/workflows/pages.yml`, which copies
   `docs/screenshots/` in next to it. Preview it by doing the same into `_site/` and serving that folder.
+  `sh docs/site-art/make-deck-images.sh` rebuilds the Steam Deck images from Valve's press render and
+  the screenshots.
 - Design decisions: `docs/adr/`. Vocabulary: `GLOSSARY.md`. Verification status and open unknowns:
   `docs/verification.md`. Vendored Python modules: `py_modules/README.md`.
 

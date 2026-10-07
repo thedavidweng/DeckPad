@@ -70,84 +70,7 @@
   <main>
     <div class="hero">
       <div class="signal" aria-hidden="true"><span></span><span></span><span></span></div>
-      <div class="hero-art">
-        <svg viewBox="0 0 1200 500" role="img" aria-label="A Steam Deck showing DeckPad's Controller Screen, connected to a MacBook Air">
-          <defs>
-            <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#3a3b3f"/>
-              <stop offset="1" stop-color="#1e1f22"/>
-            </linearGradient>
-            <linearGradient id="pad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#2a2b2e"/>
-              <stop offset="1" stop-color="#232427"/>
-            </linearGradient>
-            <radialGradient id="stick" cx="0.4" cy="0.35" r="0.7">
-              <stop offset="0" stop-color="#4a4b50"/>
-              <stop offset="1" stop-color="#1c1d20"/>
-            </radialGradient>
-            <clipPath id="display"><rect x="320" y="80" width="560" height="350" rx="4"/></clipPath>
-          </defs>
-
-          <rect x="150" y="38" width="150" height="26" rx="13" fill="#2a2b2e"/>
-          <rect x="900" y="38" width="150" height="26" rx="13" fill="#2a2b2e"/>
-
-          <path fill="url(#body)" d="M200 50 H1000 C1110 50 1168 110 1174 200 L1184 360 C1190 440 1150 488 1080 488 C1020 488 990 462 960 452 H240 C210 462 180 488 120 488 C50 488 10 440 16 360 L26 200 C32 110 90 50 200 50 Z"/>
-          <path fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2" d="M200 52 H1000 C1108 52 1166 112 1172 200"/>
-
-          <rect x="304" y="64" width="592" height="382" rx="16" fill="#0b0b0c"/>
-          <rect x="320" y="80" width="560" height="350" fill="#141a22"/>
-          <image href="screenshots/controller-screen.png" x="320" y="80" width="560" height="350" preserveAspectRatio="xMidYMid meet" clip-path="url(#display)"/>
-
-          <g fill="#151618">
-            <rect x="96" y="128" width="30" height="94" rx="6"/>
-            <rect x="64" y="160" width="94" height="30" rx="6"/>
-          </g>
-          <g fill="#2a2b2e">
-            <path d="M104 140 l7 -7 l7 7 z"/>
-            <path d="M104 210 l7 7 l7 -7 z"/>
-            <path d="M76 168 l-7 7 l7 7 z"/>
-            <path d="M146 168 l7 7 l-7 7 z"/>
-          </g>
-          <circle cx="232" cy="155" r="46" fill="#151618"/>
-          <circle cx="232" cy="155" r="34" fill="url(#stick)"/>
-          <circle cx="232" cy="155" r="22" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
-          <rect x="150" y="250" width="118" height="118" rx="22" fill="url(#pad)" stroke="#18191b" stroke-width="2"/>
-          <rect x="226" y="392" width="56" height="20" rx="10" fill="#151618"/>
-          <text x="254" y="406" fill="#9a9ba0" font-size="10" font-family="Roboto, Arial, sans-serif" font-weight="700" text-anchor="middle">STEAM</text>
-          <g fill="#151618">
-            <rect x="248" y="104" width="22" height="12" rx="4"/>
-            <rect x="930" y="104" width="22" height="12" rx="4"/>
-          </g>
-
-          <circle cx="968" cy="155" r="46" fill="#151618"/>
-          <circle cx="968" cy="155" r="34" fill="url(#stick)"/>
-          <circle cx="968" cy="155" r="22" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
-          <g font-family="Montserrat, Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#cfd0d4">
-            <circle cx="1087" cy="122" r="19" fill="#151618"/>
-            <text x="1087" y="128">Y</text>
-            <circle cx="1052" cy="157" r="19" fill="#151618"/>
-            <text x="1052" y="163">X</text>
-            <circle cx="1122" cy="157" r="19" fill="#151618"/>
-            <text x="1122" y="163">B</text>
-            <circle cx="1087" cy="192" r="19" fill="#151618"/>
-            <text x="1087" y="198">A</text>
-          </g>
-          <rect x="932" y="250" width="118" height="118" rx="22" fill="url(#pad)" stroke="#18191b" stroke-width="2"/>
-          <rect x="918" y="392" width="56" height="20" rx="10" fill="#151618"/>
-          <g fill="#9a9ba0">
-            <circle cx="934" cy="402" r="2.6"/>
-            <circle cx="946" cy="402" r="2.6"/>
-            <circle cx="958" cy="402" r="2.6"/>
-          </g>
-
-          <g fill="#151618">
-            <rect x="200" y="430" width="40" height="4" rx="2"/>
-            <rect x="200" y="440" width="40" height="4" rx="2"/>
-            <rect x="960" y="430" width="40" height="4" rx="2"/>
-            <rect x="960" y="440" width="40" height="4" rx="2"/>
-          </g>
-        </svg>
-      </div>
+      <img class="hero-img" src="deck-controller-screen.webp" width="2000" height="1039" alt="A Steam Deck showing DeckPad's Controller Screen while connected to a MacBook Air">
     </div>
 
     <div class="section light">
@@ -162,7 +85,7 @@
         <h2>Your Deck, their game</h2>
         <div class="features">
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-bluetooth"/></svg>No software on the Host</h4>
+            <h4><svg class="icon"><use href="#i-bluetooth"/></svg>No Host software</h4>
             <p>The PC, phone, or tablet finds the Deck in its own <strong>Bluetooth settings</strong> and pairs with it like any wireless controller. Nothing to install on the other side.</p>
           </div>
           <div class="feature">
@@ -174,7 +97,7 @@
             <p>A full-screen page that keeps <strong>Steam on the Deck</strong> from reacting to your presses, and lights up exactly what the Host receives.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-sync"/></svg>Reconnects by itself</h4>
+            <h4><svg class="icon"><use href="#i-sync"/></svg>Auto reconnect</h4>
             <p>Pair once. With <strong>Controller Mode</strong> on, a Paired Host comes back without pairing again, by itself or when you pick the Deck in its Bluetooth settings.</p>
           </div>
           <div class="feature">
@@ -182,7 +105,7 @@
             <p>Hold <strong>Menu + View + L1 + R1</strong> to turn Controller Mode off from the controls, without touching the screen. You can turn it off if a game needs that combination.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-shield"/></svg>Leaves SteamOS alone</h4>
+            <h4><svg class="icon"><use href="#i-shield"/></svg>Fully reversible</h4>
             <p>No system packages, no <strong>Desktop Mode</strong> setup, and no changes to SteamOS's read-only files. What DeckPad changes is undone when Controller Mode turns off.</p>
           </div>
         </div>
@@ -191,26 +114,9 @@
 
     <section class="section light">
       <div class="section-inner">
-        <h2>Pair in three steps</h2>
-        <ol class="steps">
-          <li>Press the <svg class="icon inline-glyph" viewBox="0 0 32 14" style="width:2.3em" aria-label="Quick Access"><use href="#i-qam"/></svg> button on your Steam Deck, go to the <svg class="icon" aria-label="Decky"><use href="#i-plug"/></svg> tab, and open <strong>DeckPad</strong>.</li>
-          <li>Turn on <strong>Controller Mode</strong> and select <strong>Pair a Device</strong>. The Deck stays visible for three minutes.</li>
-          <li>On the Host, scan for Bluetooth devices and select the Deck (<code>steamdeck</code> by default, with a game controller icon). The panel then shows "Paired with <em>Host</em>".</li>
-        </ol>
-        <div class="shots">
-          <figure>
-            <img src="screenshots/qam-pairing.png" width="521" height="680" alt="DeckPad's panel in Pairing Mode, waiting for a device to pair" loading="lazy">
-            <figcaption>Pairing Mode waits for the Host.</figcaption>
-          </figure>
-          <figure>
-            <img src="screenshots/qam-connected.png" width="521" height="680" alt="DeckPad's panel while connected to a Host" loading="lazy">
-            <figcaption>Connected: your controls go to the Host.</figcaption>
-          </figure>
-          <figure>
-            <img src="screenshots/qam-settings.png" width="521" height="680" alt="Paired Devices with Disconnect and Forget, and the Quit Combo setting" loading="lazy">
-            <figcaption>Disconnect, Forget, and the Quit Combo.</figcaption>
-          </figure>
-        </div>
+        <h2>Right in Quick Access</h2>
+        <p>DeckPad lives in the Quick Access menu. Press the <svg class="icon inline-glyph" viewBox="0 0 32 14" style="width:2.3em" aria-label="Quick Access"><use href="#i-qam"/></svg> button on your Steam Deck, go to the <svg class="icon" aria-label="Decky"><use href="#i-plug"/></svg> tab, and open <strong>DeckPad</strong>. Turn on <strong>Controller Mode</strong> and select <strong>Pair a Device</strong>, then pick the Deck (<code>steamdeck</code> by default) in the other device's Bluetooth settings. The Deck stays visible for three minutes, and the panel shows when the Host is connected.</p>
+        <img class="section-img" src="deck-quick-access.webp" width="2000" height="1039" alt="A Steam Deck with the Quick Access menu open on DeckPad's panel, connected to a MacBook Air" loading="lazy">
       </div>
     </section>
 
@@ -308,7 +214,7 @@
     </div>
     <div class="legal">
       <p>DeckPad is an independent project and is not affiliated with Valve Corporation, Microsoft, or Steam Deck Homebrew. Steam and Steam Deck are trademarks of Valve Corporation. Xbox is a trademark of Microsoft.</p>
-      <p>Icons from <a href="https://fontawesome.com/license/free">Font Awesome Free</a> (CC BY 4.0).</p>
+      <p>Steam Deck render from Valve's <a href="https://www.steamdeck.com/en/press">Steam Deck press kit</a>, &copy; Valve Corporation. Icons from <a href="https://fontawesome.com/license/free">Font Awesome Free</a> (CC BY 4.0).</p>
     </div>
   </footer>
 

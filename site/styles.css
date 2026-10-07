@@ -259,21 +259,15 @@ main {
   background: linear-gradient(180deg, var(--hero-top) 0%, var(--accent) 84%, rgba(0, 0, 0, 0) 95%);
 }
 
-.hero-art {
+.hero-img {
   position: relative;
   z-index: 2;
   display: block;
   width: 80vw;
-  max-width: 1100px;
-  margin: auto;
-  padding: 5rem 0 3rem;
-}
-
-.hero-art svg {
-  display: block;
-  width: 100%;
+  max-width: 1200px;
   height: auto;
-  filter: drop-shadow(0 30px 30px rgba(0, 0, 0, 0.35));
+  margin: auto;
+  padding-top: 5rem;
 }
 
 /* Bluetooth signal rings radiating from the Deck, in place of the steam above Decky's mug. */
@@ -292,7 +286,7 @@ main {
   left: -250px;
   width: 500px;
   height: 500px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.25);
   border-radius: 50%;
   opacity: 0;
   animation: signal 6s infinite linear;
@@ -312,7 +306,7 @@ main {
 }
 
 @media screen and (max-width: 460px) {
-  .hero-art { padding-top: 2rem; }
+  .hero-img { padding-top: 2rem; }
   .signal { display: none; }
 }
 
@@ -420,46 +414,22 @@ main {
   .features { display: block; }
 }
 
-.steps {
-  margin-top: 1rem;
-  padding-left: 1.4rem;
-  line-height: 1.5;
-}
-
-.steps li + li {
-  margin-top: 0.4rem;
-}
-
 .inline-glyph {
   height: 1.15em;
   vertical-align: -0.25em;
 }
 
-.shots {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 2rem;
-  margin: 3.5rem auto 0;
-}
-
-.shots figure {
-  flex: 0 1 300px;
-  text-align: center;
-}
-
-.shots img {
+.section-img {
   display: block;
-  width: 100%;
+  width: 70vw;
+  max-width: 900px;
   height: auto;
-  border-radius: 14px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  margin: auto;
+  padding-top: 4rem;
 }
 
-.shots figcaption {
-  margin-top: 1rem;
-  color: #555;
-  font-size: 0.95rem;
+@media (max-width: 500px) {
+  .section-img { width: 100%; }
 }
 
 .button {
