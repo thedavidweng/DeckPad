@@ -13,6 +13,8 @@ export const CONTROLLER_SCREEN_ROUTE = "/deckpad/controller";
 
 const STEAM_MENU_BUTTONS = new Set<number | undefined>([GamepadButton.STEAM_GUIDE, GamepadButton.STEAM_QUICK_MENU]);
 
+const STEAM_MENU_HINTS_HIDDEN = { [GamepadButton.STEAM_GUIDE]: null, [GamepadButton.STEAM_QUICK_MENU]: null };
+
 interface SteamMenuButtonsSwitch {
   DisableHomeAndQuickAccessButtons(): void;
   EnableHomeAndQuickAccessButtons(): void;
@@ -138,6 +140,10 @@ export function ControllerScreen() {
       onOptionsButton={consume}
       onMenuButton={consume}
       onCancelActionDescription={capturing ? null : undefined}
+      onOKActionDescription={capturing ? null : undefined}
+      // Steam's footer takes its hints from the focused element first, and null hides one. With the
+      // menus off, Steam's own "Menu" hint for the Steam button would point at nothing.
+      actionDescriptionMap={menusOff ? STEAM_MENU_HINTS_HIDDEN : undefined}
       style={{
         height: "100%",
         display: "flex",
