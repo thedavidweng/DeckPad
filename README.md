@@ -111,7 +111,7 @@ known to work.
 | Pairing timeout, cancel, and stale-pairing error | Yes | Timeout and stale-pairing error, yes |
 | Reconnect without re-pairing after Controller Mode off/on | Yes | Yes; the Host reconnected by itself in about 2-11 s and kept receiving input |
 | Disconnect, Allow Reconnecting, Forget | Yes | Yes |
-| Deck controls to Gamepad Reports (mapping, send-on-change, pacing) | Yes | Report path yes; the Host's capabilities match the table above. A full button-by-button check by a person holding the Deck has not been done |
+| Deck controls to Gamepad Reports (mapping, send-on-change, pacing) | Yes | Report path yes; the Host's capabilities match the table above. A person pressed every core control with the Controller Screen open, and each lit up correctly there; a button-by-button check on the Host's side has not been done |
 | Report rate and latency | Pacing logic only | About 42-45 reports/s with no backlog once the 18.75 ms interval is in place; about 18-25 reports/s at the Host's initial 48.75 ms |
 | Bluetooth restart, adapter off and on | Yes | Yes; Controller Mode resumed and the Host reconnected |
 | Troubleshooting diagnostics | Yes | Collected and saved; the copy button in Gaming Mode has not been checked |
@@ -120,8 +120,7 @@ known to work.
 | Uninstall from Decky's settings | Yes | Yes, with a Host connected: its pairing was removed and DeckPad's files deleted |
 
 Not yet checked on hardware: how the QAM panel looks (agents drove it through the plugin API only),
-whether Steam's UI on the Deck reacts to presses during Controller Mode and whether the Controller
-Screen stops it (its route is registered on the Deck, but it has not been opened in Gaming Mode),
+whether Steam's chords on the Steam button (holding it, Steam + B) still work on the Controller Screen,
 Bluetooth headphones or other Bluetooth devices on the Deck while a Host is connected, and
 suspend/resume. These are on the manual test list; see
 [Verification status](docs/verification.md).
@@ -174,8 +173,9 @@ suspend/resume. These are on the manual test list; see
   Quit Combo (which also turns Controller Mode off) or tap **Close** on the touchscreen. With the Quit
   Combo turned off, the Steam and `…` buttons open Steam's menus as usual: press `…` and select **Close
   Controller Screen**, or press the Steam button. Do not run a game on the Deck while using it as a
-  controller. Whether the screen absorbs every press, and whether these ways out work, has not been
-  checked by a person since the first build on the Deck swallowed the Steam and `…` buttons.
+  controller. Checked on the Deck in Gaming Mode: the screen absorbs the presses, the Steam and `…`
+  buttons open nothing, and the Quit Combo and **Close** both get you out. Whether Steam's chords on
+  the Steam button still work there has not been checked.
 - **Not sent:** rear buttons, trackpads, gyro, and rumble from the Host.
 - **Paired Hosts appear in Steam's Bluetooth settings**, because they are ordinary Bluetooth pairings.
   Removing one there also removes it from DeckPad.
@@ -184,7 +184,8 @@ suspend/resume. These are on the manual test list; see
   input after upgrading. Remove the Deck on the Host, select **Forget** in DeckPad, and pair again once.
   Restarting the Deck also clears it.
 - **Pending checks:** suspend/resume with a Host connected, Bluetooth audio on the Deck while a Host is
-  connected, the Controller Screen in Gaming Mode, and non-Linux Hosts have not been tested. See
+  connected, Steam's chords on the Steam button while the Controller Screen is open, and non-Linux Hosts
+  have not been tested. See
   [Verification status](docs/verification.md) for the full list of open unknowns.
 
 ## What DeckPad changes on your Deck

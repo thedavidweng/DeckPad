@@ -17,4 +17,4 @@ The combo is on by default. A **Quit Combo** toggle in the panel's Settings sect
 ## Consequences
 
 - The Host sees the combo's buttons go down one by one before the last one completes it, as with Moonlight, and then a report with nothing held before the link drops.
-- Whether the combo works on the Deck in Gaming Mode, and whether Steam reacts to it before the Controller Screen closes, needs a person holding the Deck (U4 in [Verification status](../verification.md)).
+- On the Deck in Gaming Mode, holding the combo on the Controller Screen closed the screen and turned Controller Mode off (U4 in [Verification status](../verification.md)).

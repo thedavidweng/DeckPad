@@ -12,6 +12,6 @@ Steam delivers the Steam and `…` buttons (`STEAM_GUIDE` and `STEAM_QUICK_MENU`
 
 ## Consequences
 
-- On the Deck the route is registered with Decky's router (checked in Desktop Mode through `routerHook.routerState`). Whether the screen absorbs every press in Gaming Mode, and whether the Steam and `…` buttons still get the user out, needs a person holding the Deck (U4 in [Verification status](../verification.md)).
+- On the Deck in Gaming Mode a person pressed every core control with the screen open and the library behind it did not move (U4 in [Verification status](../verification.md)). The ways out are now those of ADR-0014 while the Quit Combo is on.
 - A running game on the Deck still receives the controls, because the screen only holds Steam's UI focus. The README keeps advising not to run a game while using the Deck as a controller.
 - The screen follows `controller_mode_state` like the panel, so it shows "Connected to *Host*", "Waiting for a paired device" or the recovering message.

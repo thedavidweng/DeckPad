@@ -13,4 +13,5 @@ That removes the ways out ADR-0011 relied on, so the screen keeps two others: th
 
 - The switch is one flag, not a counter. If Steam's own error screen turns it off while the Controller Screen is open, closing the screen turns it back on underneath that error screen.
 - On the Deck (SteamOS 3.8.28) `SteamUIStore` has both functions, opening the screen with Controller Mode on turns the menus off (`BHomeAndQuickAccessButtonsEnabled()` is false), and they are back on after Decky restarts. Steam's footer still shows its Steam-button hint, as it does on Steam's own test page (steam-for-linux#11504).
-- Whether pressing the Steam and `…` buttons really opens nothing, whether Steam's chords on them still work, and whether the menus come back after **Close** and after the Quit Combo, needs a person to check (U4 in [Verification status](../verification.md)).
+- On the Deck, a person pressing the Steam and `…` buttons with the screen open got no menu. The menus came back after **Close** (a touch tap), after the Quit Combo, after Controller Mode was turned off from the panel, and after the Quit Combo setting was switched off with the screen open.
+- Whether Steam's chords on the Steam button (holding it, Steam + B) still work while the screen is open has not been checked (U4 in [Verification status](../verification.md)).
