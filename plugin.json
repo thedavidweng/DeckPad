@@ -2,15 +2,16 @@
   "name": "DeckPad",
   "author": "thedavidweng",
   "flags": [
-    "debug",
-    "_root"
+    "root"
   ],
   "api_version": 1,
   "publish": {
     "tags": [
-      "deckpad"
+      "controller",
+      "bluetooth",
+      "root"
     ],
-    "description": "DeckPad plugin.",
-    "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
+    "description": "Use your Steam Deck as a Bluetooth game controller for a PC, phone, or tablet. Unlike plugins that connect headphones or controllers to the Deck, DeckPad makes the Deck itself the controller.",
+    "image": "https://opengraph.githubassets.com/1/thedavidweng/DeckPad"
   }
 }

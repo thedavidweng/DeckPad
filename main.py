@@ -1,57 +1,105 @@
 import os
+import sys
 
-# The decky plugin module is located at decky-loader/plugin
-# For easy intellisense checkout the decky-loader code repo
-# and add the `decky-loader/plugin/imports` path to `python.analysis.extraPaths` in `.vscode/settings.json`
-import decky
-import asyncio
+# Decky appends py_modules to sys.path; putting it first makes the vendored, pinned dbus-fast win over
+# anything else on the path.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "py_modules"))
+
+import decky  # noqa: E402
+
+from deckpad import controller_mode, diagnostics  # noqa: E402
+from deckpad.hosts import PairedHosts  # noqa: E402
+from deckpad.settings import Settings  # noqa: E402
+
+STATE_EVENT = "controller_mode_state"
+GAMEPAD_EVENT = "gamepad_report"
+INTERVAL_STATE_FILE = "connection_interval.json"
+DIAGNOSTICS_FILE = "diagnostics.txt"
+
+
+def _interval_state_path():
+    return os.path.join(decky.DECKY_PLUGIN_RUNTIME_DIR, INTERVAL_STATE_FILE)
+
+
+async def _publish(snapshot):
+    await decky.emit(STATE_EVENT, snapshot)
+
+
+async def _publish_gamepad_report(report):
+    await decky.emit(GAMEPAD_EVENT, report)
+
 
 class Plugin:
-    # A normal method. It can be called from the TypeScript side using @decky/api.
-    async def add(self, left: int, right: int) -> int:
-        return left + right
+    def __init__(self):
+        diagnostics.RECENT_LOG.attach(decky.logger)
+        # Controller Mode always starts off: after a reload or Decky restart the Deck is back to
+        # ordinary SteamOS behaviour until the user turns it on again.
+        self._controller_mode = controller_mode.ControllerMode(
+            on_change=_publish,
+            paired_hosts=PairedHosts(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")),
+            interval_state_path=_interval_state_path(),
+            settings=Settings(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")),
+            on_gamepad_report=_publish_gamepad_report,
+        )
 
-    async def long_running(self):
-        await asyncio.sleep(15)
-        # Passing through a bunch of random data, just as an example
-        await decky.emit("timer_event", "Hello from the backend!", True, 2)
+    async def get_state(self):
+        return self._controller_mode.snapshot()
 
-    # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
+    async def set_controller_mode(self, enabled):
+        return await self._controller_mode.set_enabled(bool(enabled))
+
+    async def set_pairing_mode(self, enabled):
+        return await self._controller_mode.set_pairing_mode(bool(enabled))
+
+    async def set_quit_combo(self, enabled):
+        return await self._controller_mode.set_quit_combo(bool(enabled))
+
+    async def watch_gamepad(self, enabled):
+        """The Controller Screen draws the Gamepad Reports going to the Host while it is open."""
+        self._controller_mode.watch_gamepad(bool(enabled))
+
+    async def disconnect_host(self, address):
+        return await self._controller_mode.disconnect_host(str(address))
+
+    async def forget_host(self, address):
+        return await self._controller_mode.forget_host(str(address))
+
+    async def allow_reconnect(self):
+        return await self._controller_mode.allow_reconnect()
+
+    async def get_diagnostics(self):
+        """For the panel's Troubleshooting section. Also saved to the plugin's log directory."""
+        report = await diagnostics.collect(self._controller_mode, getattr(decky, "DECKY_PLUGIN_VERSION", None))
+        path = os.path.join(decky.DECKY_PLUGIN_LOG_DIR, DIAGNOSTICS_FILE)
+        try:
+            os.makedirs(decky.DECKY_PLUGIN_LOG_DIR, exist_ok=True)
+            with open(path, "w") as f:
+                f.write(report["text"])
+        except OSError as e:
+            decky.logger.warning("Could not save diagnostics to %s: %r", path, e)
+            path = None
+        return dict(report, path=path)
+
     async def _main(self):
-        self.loop = asyncio.get_event_loop()
-        decky.logger.info("Hello World!")
+        from dbus_fast.__version__ import __version__ as dbus_fast_version
 
-    # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
-    # completely removed
+        decky.logger.info("DeckPad backend started (dbus-fast %s)", dbus_fast_version)
+        await self._controller_mode.clean_up_after_previous_run()
+
     async def _unload(self):
-        decky.logger.info("Goodnight World!")
-        pass
+        self._controller_mode.shutdown()
+        decky.logger.info("DeckPad backend stopped")
 
-    # Function called after `_unload` during uninstall, utilize this to clean up processes and other remnants of your
-    # plugin that may remain on the system
     async def _uninstall(self):
-        decky.logger.info("Goodbye World!")
-        pass
+        """Decky runs this after `_unload` when the user uninstalls DeckPad. Must not await (see shutdown)."""
+        self._controller_mode.uninstall()
+        path = os.path.join(decky.DECKY_PLUGIN_LOG_DIR, DIAGNOSTICS_FILE)
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            decky.logger.warning("Could not delete %s: %r", path, e)
 
-    async def start_timer(self):
-        self.loop.create_task(self.long_running())
-
-    # Migrations that should be performed before entering `_main()`.
     async def _migration(self):
-        decky.logger.info("Migrating")
-        # Here's a migration example for logs:
-        # - `~/.config/decky-template/template.log` will be migrated to `decky.decky_LOG_DIR/template.log`
-        decky.migrate_logs(os.path.join(decky.DECKY_USER_HOME,
-                                               ".config", "decky-template", "template.log"))
-        # Here's a migration example for settings:
-        # - `~/homebrew/settings/template.json` is migrated to `decky.decky_SETTINGS_DIR/template.json`
-        # - `~/.config/decky-template/` all files and directories under this root are migrated to `decky.decky_SETTINGS_DIR/`
-        decky.migrate_settings(
-            os.path.join(decky.DECKY_HOME, "settings", "template.json"),
-            os.path.join(decky.DECKY_USER_HOME, ".config", "decky-template"))
-        # Here's a migration example for runtime data:
-        # - `~/homebrew/template/` all files and directories under this root are migrated to `decky.decky_RUNTIME_DIR/`
-        # - `~/.local/share/decky-template/` all files and directories under this root are migrated to `decky.decky_RUNTIME_DIR/`
-        decky.migrate_runtime(
-            os.path.join(decky.DECKY_HOME, "template"),
-            os.path.join(decky.DECKY_USER_HOME, ".local", "share", "decky-template"))
+        pass
