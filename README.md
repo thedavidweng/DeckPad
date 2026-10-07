@@ -123,6 +123,8 @@ message: [docs/troubleshooting.md](docs/troubleshooting.md).
   cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
   (cd out && zip -r DeckPad.zip DeckPad -x '*/__pycache__/*')
   ```
+- Website: `site/`, deployed to GitHub Pages by `.github/workflows/pages.yml`, which copies
+  `docs/screenshots/` in next to it. Preview it by doing the same into `_site/` and serving that folder.
 - Design decisions: `docs/adr/`. Vocabulary: `GLOSSARY.md`. Verification status and open unknowns:
   `docs/verification.md`. Vendored Python modules: `py_modules/README.md`.
 

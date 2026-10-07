@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeckPad - Use your Steam Deck as a Bluetooth controller</title>
+  <meta name="description" content="DeckPad is a Decky Loader plugin that turns your Steam Deck into a Bluetooth game controller for a PC, phone, or tablet. The other device pairs with it like any wireless controller and needs no extra software.">
+  <meta name="theme-color" content="#1b1b1b">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="DeckPad">
+  <meta property="og:description" content="Use your Steam Deck as a Bluetooth game controller for a PC, phone, or tablet.">
+  <meta property="og:url" content="https://thedavidweng.github.io/DeckPad/">
+  <meta property="og:image" content="https://thedavidweng.github.io/DeckPad/og-image.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="DeckPad: your Steam Deck, now a Bluetooth controller. Shown next to DeckPad's panel connected to a MacBook Air.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://thedavidweng.github.io/DeckPad/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Icons: Font Awesome Free 5, CC BY 4.0, https://fontawesome.com/license/free -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-bluetooth" viewBox="0 0 320 512"><path d="M196.48 260.023l92.626-103.333L143.125 0v206.33l-86.111-86.111-31.406 31.405 108.061 108.399L25.608 368.422l31.406 31.405 86.111-86.111L145.84 512l148.552-148.644-97.912-103.333zm40.86-102.996l-49.977 49.978-.338-100.295 50.315 50.317zM187.363 313.04l49.977 49.978-50.315 50.316.338-100.294z"/></symbol>
+    <symbol id="i-gamepad" viewBox="0 0 640 512"><path d="M480.07 96H160a160 160 0 1 0 114.24 272h91.52A160 160 0 1 0 480.07 96zM248 268a12 12 0 0 1-12 12h-52v52a12 12 0 0 1-12 12h-24a12 12 0 0 1-12-12v-52H84a12 12 0 0 1-12-12v-24a12 12 0 0 1 12-12h52v-52a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v52h52a12 12 0 0 1 12 12zm216 76a40 40 0 1 1 40-40 40 40 0 0 1-40 40zm64-96a40 40 0 1 1 40-40 40 40 0 0 1-40 40z"/></symbol>
+    <symbol id="i-desktop" viewBox="0 0 576 512"><path d="M528 0H48C21.5 0 0 21.5 0 48v320c0 26.5 21.5 48 48 48h192l-16 48h-72c-13.3 0-24 10.7-24 24s10.7 24 24 24h272c13.3 0 24-10.7 24-24s-10.7-24-24-24h-72l-16-48h192c26.5 0 48-21.5 48-48V48c0-26.5-21.5-48-48-48zm-16 352H64V64h448v288z"/></symbol>
+    <symbol id="i-sync" viewBox="0 0 512 512"><path d="M370.72 133.28C339.458 104.008 298.888 87.962 255.848 88c-77.458.068-144.328 53.178-162.791 126.85-1.344 5.363-6.122 9.15-11.651 9.15H24.103c-7.498 0-13.194-6.807-11.807-14.176C33.933 94.924 134.813 8 256 8c66.448 0 126.791 26.136 171.315 68.685L463.03 40.97C478.149 25.851 504 36.559 504 57.941V192c0 13.255-10.745 24-24 24H345.941c-21.382 0-32.09-25.851-16.971-40.971l41.75-41.749zM32 296h134.059c21.382 0 32.09 25.851 16.971 40.971l-41.75 41.75c31.262 29.273 71.835 45.319 114.876 45.28 77.418-.07 144.315-53.144 162.787-126.849 1.344-5.363 6.122-9.15 11.651-9.15h57.304c7.498 0 13.194 6.807 11.807 14.176C478.067 417.076 377.187 504 256 504c-66.448 0-126.791-26.136-171.315-68.685L48.97 471.03C33.851 486.149 8 475.441 8 454.059V320c0-13.255 10.745-24 24-24z"/></symbol>
+    <symbol id="i-power" viewBox="0 0 512 512"><path d="M400 54.1c63 45 104 118.6 104 201.9 0 136.8-110.8 247.7-247.5 248C120 504.3 8.2 393 8 256.4 7.9 173.1 48.9 99.3 111.8 54.2c11.7-8.3 28-4.8 35 7.7L162.6 90c5.9 10.5 3.1 23.8-6.6 31-41.5 30.8-68 79.6-68 134.9-.1 92.3 74.5 168.1 168 168.1 91.6 0 168.6-74.2 168-169.1-.3-51.8-24.7-101.8-68.1-134-9.7-7.2-12.4-20.5-6.5-30.9l15.8-28.1c7-12.4 23.2-16.1 34.8-7.8zM296 264V24c0-13.3-10.7-24-24-24h-32c-13.3 0-24 10.7-24 24v240c0 13.3 10.7 24 24 24h32c13.3 0 24-10.7 24-24z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 512 512"><path d="M466.5 83.7l-192-80a48.15 48.15 0 0 0-36.9 0l-192 80C27.7 91.1 16 108.6 16 128c0 198.5 114.5 335.7 221.5 380.3 11.8 4.9 25.1 4.9 36.9 0C360.1 472.6 496 349.3 496 128c0-19.4-11.7-36.9-29.5-44.3zM256.1 446.3l-.1-381 175.9 73.3c-3.3 151.4-82.1 261.1-175.8 307.7z"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 384 512"><path d="M320,32a32,32,0,0,0-64,0v96h64Zm48,128H16A16,16,0,0,0,0,176v32a16,16,0,0,0,16,16H32v32A160.07,160.07,0,0,0,160,412.8V512h64V412.8A160.07,160.07,0,0,0,352,256V224h16a16,16,0,0,0,16-16V176A16,16,0,0,0,368,160ZM128,32a32,32,0,0,0-64,0v96h64Z"/></symbol>
+    <symbol id="i-store" viewBox="0 0 616 512"><path d="M602 118.6L537.1 15C531.3 5.7 521 0 510 0H106C95 0 84.7 5.7 78.9 15L14 118.6c-33.5 53.5-3.8 127.9 58.8 136.4 4.5.6 9.1.9 13.7.9 29.6 0 55.8-13 73.8-33.1 18 20.1 44.3 33.1 73.8 33.1 29.6 0 55.8-13 73.8-33.1 18 20.1 44.3 33.1 73.8 33.1 29.6 0 55.8-13 73.8-33.1 18.1 20.1 44.3 33.1 73.8 33.1 4.7 0 9.2-.3 13.7-.9 62.8-8.4 92.6-82.8 59-136.4zM529.5 288c-10 0-19.9-1.5-29.5-3.8V384H116v-99.8c-9.6 2.2-19.5 3.8-29.5 3.8-6 0-12.1-.4-18-1.2-5.6-.8-11.1-2.1-16.4-3.6V480c0 17.7 14.3 32 32 32h448c17.7 0 32-14.3 32-32V283.2c-5.4 1.6-10.8 2.9-16.4 3.6-6.1.8-12.1 1.2-18.2 1.2z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 512 512"><path d="M216 0h80c13.3 0 24 10.7 24 24v168h87.7c17.8 0 26.7 21.5 14.1 34.1L269.7 378.3c-7.5 7.5-19.8 7.5-27.3 0L90.1 226.1c-12.6-12.6-3.7-34.1 14.1-34.1H192V24c0-13.3 10.7-24 24-24zm296 376v112c0 13.3-10.7 24-24 24H24c-13.3 0-24-10.7-24-24V376c0-13.3 10.7-24 24-24h146.7l49 49c20.1 20.1 52.5 20.1 72.6 0l49-49H488c13.3 0 24 10.7 24 24zm-124 88c0-11-9-20-20-20s-20 9-20 20 9 20 20 20 20-9 20-20zm64 0c0-11-9-20-20-20s-20 9-20 20 9 20 20 20 20-9 20-20z"/></symbol>
+    <symbol id="i-bars" viewBox="0 0 448 512"><path d="M16 132h416c8.837 0 16-7.163 16-16V76c0-8.837-7.163-16-16-16H16C7.163 60 0 67.163 0 76v40c0 8.837 7.163 16 16 16zm0 160h416c8.837 0 16-7.163 16-16v-40c0-8.837-7.163-16-16-16H16c-8.837 0-16 7.163-16 16v40c0 8.837 7.163 16 16 16zm0 160h416c8.837 0 16-7.163 16-16v-40c0-8.837-7.163-16-16-16H16c-8.837 0-16 7.163-16 16v40c0 8.837 7.163 16 16 16z"/></symbol>
+    <symbol id="i-times" viewBox="0 0 352 512"><path d="M242.72 256l100.07-100.07c12.28-12.28 12.28-32.19 0-44.48l-22.24-22.24c-12.28-12.28-32.19-12.28-44.48 0L176 189.28 75.93 89.21c-12.28-12.28-32.19-12.28-44.48 0L9.21 111.45c-12.28 12.28-12.28 32.19 0 44.48L109.28 256 9.21 356.07c-12.28 12.28-12.28 32.19 0 44.48l22.24 22.24c12.28 12.28 32.2 12.28 44.48 0L176 322.72l100.07 100.07c12.28 12.28 32.2 12.28 44.48 0l22.24-22.24c12.28-12.28 12.28-32.19 0-44.48L242.72 256z"/></symbol>
+    <symbol id="i-qam" viewBox="0 0 32 14"><rect x="0.4" y="0" width="31.2" height="14" rx="7"/><circle cx="8.9" cy="7" r="1.8" fill="#fff"/><circle cx="16" cy="7" r="1.8" fill="#fff"/><circle cx="23.1" cy="7" r="1.8" fill="#fff"/></symbol>
+  </svg>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a class="brand" href="./">
+        <img src="logo.svg" alt="">
+        <span>DeckPad</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+        <svg class="icon"><use href="#i-bars"/></svg>
+      </button>
+      <div class="nav-menu">
+        <a class="nav-link" href="https://github.com/thedavidweng/DeckPad"><span>GitHub</span></a>
+        <a class="nav-link" href="#faq"><span>FAQ</span></a>
+        <a class="nav-link primary" href="#get-started"><span>Install</span></a>
+      </div>
+    </div>
+  </nav>
+
+  <aside class="sidebar" id="sidebar" aria-hidden="true">
+    <button class="sidebar-close" type="button" aria-label="Close menu">
+      <svg class="icon"><use href="#i-times"/></svg>
+    </button>
+    <div class="sidebar-menu">
+      <a href="https://github.com/thedavidweng/DeckPad">GitHub</a>
+      <a href="#faq">FAQ</a>
+      <a class="primary" href="#get-started">Install</a>
+    </div>
+  </aside>
+
+  <main>
+    <div class="hero">
+      <div class="signal" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="hero-art">
+        <svg viewBox="0 0 1200 500" role="img" aria-label="A Steam Deck showing DeckPad's Controller Screen, connected to a MacBook Air">
+          <defs>
+            <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3a3b3f"/>
+              <stop offset="1" stop-color="#1e1f22"/>
+            </linearGradient>
+            <linearGradient id="pad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#2a2b2e"/>
+              <stop offset="1" stop-color="#232427"/>
+            </linearGradient>
+            <radialGradient id="stick" cx="0.4" cy="0.35" r="0.7">
+              <stop offset="0" stop-color="#4a4b50"/>
+              <stop offset="1" stop-color="#1c1d20"/>
+            </radialGradient>
+            <clipPath id="display"><rect x="320" y="80" width="560" height="350" rx="4"/></clipPath>
+          </defs>
+
+          <rect x="150" y="38" width="150" height="26" rx="13" fill="#2a2b2e"/>
+          <rect x="900" y="38" width="150" height="26" rx="13" fill="#2a2b2e"/>
+
+          <path fill="url(#body)" d="M200 50 H1000 C1110 50 1168 110 1174 200 L1184 360 C1190 440 1150 488 1080 488 C1020 488 990 462 960 452 H240 C210 462 180 488 120 488 C50 488 10 440 16 360 L26 200 C32 110 90 50 200 50 Z"/>
+          <path fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2" d="M200 52 H1000 C1108 52 1166 112 1172 200"/>
+
+          <rect x="304" y="64" width="592" height="382" rx="16" fill="#0b0b0c"/>
+          <rect x="320" y="80" width="560" height="350" fill="#141a22"/>
+          <image href="screenshots/controller-screen.png" x="320" y="80" width="560" height="350" preserveAspectRatio="xMidYMid meet" clip-path="url(#display)"/>
+
+          <g fill="#151618">
+            <rect x="96" y="128" width="30" height="94" rx="6"/>
+            <rect x="64" y="160" width="94" height="30" rx="6"/>
+          </g>
+          <g fill="#2a2b2e">
+            <path d="M104 140 l7 -7 l7 7 z"/>
+            <path d="M104 210 l7 7 l7 -7 z"/>
+            <path d="M76 168 l-7 7 l7 7 z"/>
+            <path d="M146 168 l7 7 l-7 7 z"/>
+          </g>
+          <circle cx="232" cy="155" r="46" fill="#151618"/>
+          <circle cx="232" cy="155" r="34" fill="url(#stick)"/>
+          <circle cx="232" cy="155" r="22" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
+          <rect x="150" y="250" width="118" height="118" rx="22" fill="url(#pad)" stroke="#18191b" stroke-width="2"/>
+          <rect x="226" y="392" width="56" height="20" rx="10" fill="#151618"/>
+          <text x="254" y="406" fill="#9a9ba0" font-size="10" font-family="Roboto, Arial, sans-serif" font-weight="700" text-anchor="middle">STEAM</text>
+          <g fill="#151618">
+            <rect x="248" y="104" width="22" height="12" rx="4"/>
+            <rect x="930" y="104" width="22" height="12" rx="4"/>
+          </g>
+
+          <circle cx="968" cy="155" r="46" fill="#151618"/>
+          <circle cx="968" cy="155" r="34" fill="url(#stick)"/>
+          <circle cx="968" cy="155" r="22" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
+          <g font-family="Montserrat, Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle" fill="#cfd0d4">
+            <circle cx="1087" cy="122" r="19" fill="#151618"/>
+            <text x="1087" y="128">Y</text>
+            <circle cx="1052" cy="157" r="19" fill="#151618"/>
+            <text x="1052" y="163">X</text>
+            <circle cx="1122" cy="157" r="19" fill="#151618"/>
+            <text x="1122" y="163">B</text>
+            <circle cx="1087" cy="192" r="19" fill="#151618"/>
+            <text x="1087" y="198">A</text>
+          </g>
+          <rect x="932" y="250" width="118" height="118" rx="22" fill="url(#pad)" stroke="#18191b" stroke-width="2"/>
+          <rect x="918" y="392" width="56" height="20" rx="10" fill="#151618"/>
+          <g fill="#9a9ba0">
+            <circle cx="934" cy="402" r="2.6"/>
+            <circle cx="946" cy="402" r="2.6"/>
+            <circle cx="958" cy="402" r="2.6"/>
+          </g>
+
+          <g fill="#151618">
+            <rect x="200" y="430" width="40" height="4" rx="2"/>
+            <rect x="200" y="440" width="40" height="4" rx="2"/>
+            <rect x="960" y="430" width="40" height="4" rx="2"/>
+            <rect x="960" y="440" width="40" height="4" rx="2"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="section light">
+      <div class="hero-text">
+        <h2 class="thin">Pair it like any wireless controller.</h2>
+        <h2>Make your Steam Deck the gamepad.</h2>
+      </div>
+    </div>
+
+    <section class="section dark">
+      <div class="section-inner">
+        <h2>Your Deck, their game</h2>
+        <div class="features">
+          <div class="feature">
+            <h4><svg class="icon"><use href="#i-bluetooth"/></svg>No software on the Host</h4>
+            <p>The PC, phone, or tablet finds the Deck in its own <strong>Bluetooth settings</strong> and pairs with it like any wireless controller. Nothing to install on the other side.</p>
+          </div>
+          <div class="feature">
+            <h4><svg class="icon"><use href="#i-gamepad"/></svg>A familiar controller</h4>
+            <p>DeckPad presents itself as an <strong>Xbox Wireless Controller</strong>, so games already know the layout: face buttons, bumpers, analog triggers, both sticks, and the D-pad.</p>
+          </div>
+          <div class="feature">
+            <h4><svg class="icon"><use href="#i-desktop"/></svg>Controller Screen</h4>
+            <p>A full-screen page that keeps <strong>Steam on the Deck</strong> from reacting to your presses, and lights up exactly what the Host receives.</p>
+          </div>
+          <div class="feature">
+            <h4><svg class="icon"><use href="#i-sync"/></svg>Reconnects by itself</h4>
+            <p>Pair once. With <strong>Controller Mode</strong> on, a Paired Host comes back without pairing again, by itself or when you pick the Deck in its Bluetooth settings.</p>
+          </div>
+          <div class="feature">
+            <h4><svg class="icon"><use href="#i-power"/></svg>Quit Combo</h4>
+            <p>Hold <strong>Menu + View + L1 + R1</strong> to turn Controller Mode off from the controls, without touching the screen. You can turn it off if a game needs that combination.</p>
+          </div>
+          <div class="feature">
+            <h4><svg class="icon"><use href="#i-shield"/></svg>Leaves SteamOS alone</h4>
+            <p>No system packages, no <strong>Desktop Mode</strong> setup, and no changes to SteamOS's read-only files. What DeckPad changes is undone when Controller Mode turns off.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section light">
+      <div class="section-inner">
+        <h2>Pair in three steps</h2>
+        <ol class="steps">
+          <li>Press the <svg class="icon inline-glyph" viewBox="0 0 32 14" style="width:2.3em" aria-label="Quick Access"><use href="#i-qam"/></svg> button on your Steam Deck, go to the <svg class="icon" aria-label="Decky"><use href="#i-plug"/></svg> tab, and open <strong>DeckPad</strong>.</li>
+          <li>Turn on <strong>Controller Mode</strong> and select <strong>Pair a Device</strong>. The Deck stays visible for three minutes.</li>
+          <li>On the Host, scan for Bluetooth devices and select the Deck (<code>steamdeck</code> by default, with a game controller icon). The panel then shows "Paired with <em>Host</em>".</li>
+        </ol>
+        <div class="shots">
+          <figure>
+            <img src="screenshots/qam-pairing.png" width="521" height="680" alt="DeckPad's panel in Pairing Mode, waiting for a device to pair" loading="lazy">
+            <figcaption>Pairing Mode waits for the Host.</figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/qam-connected.png" width="521" height="680" alt="DeckPad's panel while connected to a Host" loading="lazy">
+            <figcaption>Connected: your controls go to the Host.</figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/qam-settings.png" width="521" height="680" alt="Paired Devices with Disconnect and Forget, and the Quit Combo setting" loading="lazy">
+            <figcaption>Disconnect, Forget, and the Quit Combo.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section accent" id="get-started">
+      <div class="section-inner">
+        <h2>Get started</h2>
+        <p>DeckPad is in the Decky Plugin Store. On your Steam Deck, open the Quick Access menu, select the Decky tab, open the <svg class="icon" aria-label="store"><use href="#i-store"/></svg> store, and install <strong>DeckPad</strong>. You need <a href="https://decky.xyz/">Decky Loader</a> first.</p>
+        <a class="button" href="https://decky.xyz/"><svg class="icon"><use href="#i-plug"/></svg>Get Decky Loader</a>
+        <a class="button ghost" href="https://github.com/thedavidweng/DeckPad/releases/latest/download/DeckPad.zip"><svg class="icon"><use href="#i-download"/></svg>Download DeckPad.zip</a>
+        <p class="small">To install the zip by hand, turn on <strong>Developer mode</strong> in Decky's settings, then on the <strong>Developer</strong> tab select <strong>Browse</strong> next to <strong>Install Plugin from ZIP File</strong>.</p>
+      </div>
+    </section>
+
+    <section class="section dark" id="faq">
+      <div class="section-inner">
+        <h2>Any questions?</h2>
+
+        <div class="faq">
+          <h4>Does the other device need any software?</h4>
+          <p>No. It pairs with the Deck through its own Bluetooth settings. It does need to support Bluetooth Low Energy game controllers (HID over GATT); Hosts with only Classic Bluetooth cannot connect.</p>
+        </div>
+
+        <div class="faq">
+          <h4>Which devices can I use it with?</h4>
+          <p>DeckPad has been tested with a Linux PC, where it shows up as an Xbox controller. Windows, macOS, Android, iOS, and other Hosts have not been tested yet. If you try one, please <a href="https://github.com/thedavidweng/DeckPad/issues">tell us how it went</a>.</p>
+        </div>
+
+        <div class="faq">
+          <h4>Which controls are sent?</h4>
+          <p>Face buttons, bumpers, analog triggers, both sticks and stick clicks, the D-pad, View, and Menu. The Steam button becomes the Xbox (Guide) button and the <code>…</code> button becomes Share. Rear buttons, trackpads, gyro, and rumble are not supported.</p>
+        </div>
+
+        <div class="faq">
+          <h4>What does DeckPad change on my Deck?</h4>
+          <p>DeckPad runs as root. While Controller Mode is on, it changes bluetoothd's DeviceID in memory so Hosts see an Xbox controller, shortens the Bluetooth LE connection interval, and answers pairing requests. All of it is undone when Controller Mode turns off, and Controller Mode is always off after a reboot. Uninstalling removes only the pairings made through DeckPad and its own files. <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/system-changes.md">Full details</a>.</p>
+        </div>
+
+        <div class="faq">
+          <h4>Can I play a game on the Deck at the same time?</h4>
+          <p>No. A game running on the Deck still receives the controls, so close it first. The Controller Screen keeps Steam's own menus from reacting while you play on the Host.</p>
+        </div>
+
+        <div class="faq">
+          <h4>Can I connect more than one device?</h4>
+          <p>One Host at a time. You can pair several, and the first one to connect wins. <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/limitations.md">Known limitations</a>.</p>
+        </div>
+
+        <div class="faq">
+          <h4>Does it work with the Bluetooth plugin?</h4>
+          <p>Yes. The <a href="https://github.com/Outpox/Bluetooth">Bluetooth</a> plugin connects devices <em>to</em> the Deck; DeckPad works the other way round. You can install both.</p>
+        </div>
+
+        <div class="faq">
+          <h4>The other device does not find my Deck. What now?</h4>
+          <p>The Deck only shows up in other devices' scan lists while Pairing Mode is open, so select <strong>Pair a Device</strong> and scan again. If pairing fails, remove the Deck from the Host's Bluetooth settings and retry. More in the <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/troubleshooting.md">troubleshooting guide</a>.</p>
+        </div>
+
+        <div class="faq">
+          <h4>How can I get help?</h4>
+          <p>Expand <strong>Troubleshooting</strong> in DeckPad's panel to get a diagnostics report, then attach it when you <a href="https://github.com/thedavidweng/DeckPad/issues">open an issue on GitHub</a>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="./"><img src="logo.svg" alt="">DeckPad</a>
+      </div>
+      <div class="footer-spacer"></div>
+      <div class="footer-col">
+        <h5>Project</h5>
+        <a href="https://github.com/thedavidweng/DeckPad">Source code</a>
+        <a href="https://github.com/thedavidweng/DeckPad/releases">Releases</a>
+        <a href="https://github.com/thedavidweng/DeckPad/issues">Issues</a>
+      </div>
+      <div class="footer-col">
+        <h5>Docs</h5>
+        <a href="https://github.com/thedavidweng/DeckPad#readme">README</a>
+        <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/limitations.md">Limitations</a>
+        <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/troubleshooting.md">Troubleshooting</a>
+      </div>
+      <div class="footer-col">
+        <h5>Decky</h5>
+        <a href="https://decky.xyz/">Decky Loader</a>
+        <a href="https://plugins.deckbrew.xyz/">Plugin Store</a>
+        <a href="https://github.com/Outpox/Bluetooth">Bluetooth plugin</a>
+      </div>
+      <div class="footer-col">
+        <h5>License</h5>
+        <a href="https://github.com/thedavidweng/DeckPad/blob/main/LICENSE">BSD 3-Clause</a>
+        <a href="https://github.com/thedavidweng/DeckPad/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a>
+      </div>
+    </div>
+    <div class="legal">
+      <p>DeckPad is an independent project and is not affiliated with Valve Corporation, Microsoft, or Steam Deck Homebrew. Steam and Steam Deck are trademarks of Valve Corporation. Xbox is a trademark of Microsoft.</p>
+      <p>Icons from <a href="https://fontawesome.com/license/free">Font Awesome Free</a> (CC BY 4.0).</p>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

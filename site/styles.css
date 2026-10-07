@@ -1,0 +1,614 @@
+/* Layout, colours, and type follow decky.xyz so DeckPad reads as part of the Decky family. */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: Roboto, Arial, Helvetica, sans-serif;
+}
+
+:root {
+  --page-width: 1280px;
+  --navbar-height: 72px;
+  --dark: #1b1b1b;
+  --light: #fff;
+  --accent: #40afa8;
+  --hero-top: #293051;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--navbar-height);
+}
+
+body {
+  background: var(--light);
+}
+
+a {
+  color: #1a9fff;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Montserrat, Roboto, Arial, Helvetica, sans-serif;
+}
+
+h2 {
+  font-size: 56px;
+  line-height: 1.2em;
+}
+
+h4 {
+  font-size: 24px;
+}
+
+p {
+  line-height: 1.5;
+}
+
+code, kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+kbd {
+  padding: 0.1em 0.45em;
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.2);
+}
+
+@media screen and (max-width: 768px) {
+  h2 {
+    font-size: 30px;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 1em;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #000;
+}
+
+::-webkit-scrollbar-thumb {
+  background-clip: content-box;
+  background-color: #aaa;
+  border: 4px solid transparent;
+  border-radius: 100vw;
+}
+
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  vertical-align: -0.125em;
+}
+
+/* Navbar */
+
+.navbar {
+  position: fixed;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: var(--navbar-height);
+  background: var(--dark);
+  font-size: 1rem;
+}
+
+.navbar-inner {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: var(--page-width);
+  height: 100%;
+  padding: 0 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: #fff;
+  font-family: Montserrat, Roboto, Arial, Helvetica, sans-serif;
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.brand img {
+  width: 52px;
+  height: 52px;
+  margin-right: 12px;
+}
+
+.nav-menu {
+  display: flex;
+  align-items: center;
+  text-align: center;
+}
+
+.nav-link {
+  margin: 0 4px;
+  border-radius: 1.4em;
+  background: transparent;
+  color: var(--light);
+  transition-duration: 0.2s;
+  transition-property: background, color;
+}
+
+.nav-link:hover {
+  background: var(--light) !important;
+  color: var(--dark);
+}
+
+.nav-link.primary {
+  background: var(--accent);
+}
+
+.nav-link span {
+  display: block;
+  padding: 0.7em 0.9em;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.nav-toggle {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 1.8rem;
+  cursor: pointer;
+}
+
+@media screen and (max-width: 768px) {
+  .nav-toggle {
+    display: flex;
+    align-items: center;
+  }
+
+  .nav-menu {
+    display: none;
+  }
+}
+
+/* Full-screen menu on small screens */
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 999;
+  display: grid;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--dark);
+  opacity: 0;
+  visibility: hidden;
+  transition: 0.15s ease-in-out;
+}
+
+.sidebar.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.sidebar-close {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--light);
+  font-size: 2rem;
+  cursor: pointer;
+}
+
+.sidebar-menu {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: 80px;
+  text-align: center;
+}
+
+.sidebar-menu a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--dark);
+  color: var(--light);
+  font-size: 1.5rem;
+  font-weight: bold;
+  transition: 0.2s ease-in-out;
+}
+
+.sidebar-menu a.primary {
+  background-color: var(--accent);
+}
+
+.sidebar-menu a:hover {
+  background-color: var(--light);
+  color: var(--dark);
+  transition: 0.1s ease-in-out;
+}
+
+@media screen and (max-width: 480px) {
+  .sidebar-menu {
+    grid-auto-rows: 60px;
+  }
+}
+
+/* Hero */
+
+main {
+  margin-top: var(--navbar-height);
+}
+
+.hero {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--hero-top) 0%, var(--accent) 84%, rgba(0, 0, 0, 0) 95%);
+}
+
+.hero-art {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 80vw;
+  max-width: 1100px;
+  margin: auto;
+  padding: 5rem 0 3rem;
+}
+
+.hero-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 30px 30px rgba(0, 0, 0, 0.35));
+}
+
+/* Bluetooth signal rings radiating from the Deck, in place of the steam above Decky's mug. */
+.signal {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  z-index: 1;
+  width: 0;
+  height: 0;
+}
+
+.signal span {
+  position: absolute;
+  top: -250px;
+  left: -250px;
+  width: 500px;
+  height: 500px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  opacity: 0;
+  animation: signal 6s infinite linear;
+}
+
+.signal span:nth-child(2) { animation-delay: -2s; }
+.signal span:nth-child(3) { animation-delay: -4s; }
+
+@keyframes signal {
+  0% { transform: scale(0.4); opacity: 0; }
+  15% { opacity: 0.8; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal { display: none; }
+}
+
+@media screen and (max-width: 460px) {
+  .hero-art { padding-top: 2rem; }
+  .signal { display: none; }
+}
+
+.hero-text {
+  width: fit-content;
+  max-width: 80vw;
+  margin: auto;
+  padding: 1rem 0 3rem;
+  color: var(--dark);
+}
+
+.hero-text .thin {
+  font-weight: 400;
+}
+
+@media screen and (max-width: 768px) {
+  .hero-text h2 { font-size: 48px; }
+}
+
+@media screen and (max-width: 560px) {
+  .hero-text { padding-bottom: 2rem; }
+  .hero-text h2 { font-size: 36px; }
+}
+
+@media screen and (max-width: 420px) {
+  .hero-text { padding-bottom: 1rem; }
+  .hero-text h2 { font-size: 24px; }
+}
+
+/* Sections */
+
+.section.dark {
+  background-color: var(--dark);
+  color: var(--light);
+}
+
+.section.light {
+  background-color: var(--light);
+  color: var(--dark);
+}
+
+.section.accent {
+  background-color: var(--accent);
+  color: var(--light);
+}
+
+.section-inner {
+  max-width: var(--page-width);
+  margin: auto;
+  padding: 4rem;
+}
+
+@media screen and (max-width: 560px) {
+  .section-inner {
+    padding: 3rem 1.5rem;
+  }
+}
+
+.section-inner > p {
+  margin-top: 0.5rem;
+}
+
+.section a {
+  color: inherit;
+  font-weight: 500;
+}
+
+.section.dark p a,
+.section.light p a,
+.section.light li a {
+  color: #1a9fff;
+  font-weight: 400;
+}
+
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2vw;
+  width: 100%;
+}
+
+.feature {
+  flex: 1 1 calc(33.333% - 2vw);
+  min-width: 260px;
+  margin-top: 2rem;
+}
+
+.feature h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.feature p {
+  color: #ddd;
+}
+
+.feature strong {
+  color: #fff;
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .features { display: block; }
+}
+
+.steps {
+  margin-top: 1rem;
+  padding-left: 1.4rem;
+  line-height: 1.5;
+}
+
+.steps li + li {
+  margin-top: 0.4rem;
+}
+
+.inline-glyph {
+  height: 1.15em;
+  vertical-align: -0.25em;
+}
+
+.shots {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin: 3.5rem auto 0;
+}
+
+.shots figure {
+  flex: 0 1 300px;
+  text-align: center;
+}
+
+.shots img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.shots figcaption {
+  margin-top: 1rem;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 16px 12px 0 0;
+  padding: 12px 24px;
+  border-radius: 32px;
+  background: var(--dark);
+  color: var(--light);
+  font-weight: bold;
+  transition-property: all;
+  transition-duration: 0.15s;
+}
+
+.section .button {
+  color: var(--light);
+  font-weight: bold;
+}
+
+.button:hover,
+.section .button:hover {
+  background: var(--light);
+  color: var(--dark);
+  box-shadow: 0 10px 20px 0 rgba(0, 0, 0, 0.3);
+}
+
+.button.ghost {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--light);
+}
+
+.small {
+  margin-top: 1.5rem;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.faq {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2rem;
+}
+
+.faq h4 {
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.faq p {
+  margin-bottom: 0;
+}
+
+.faq a {
+  color: #1a9fff;
+}
+
+/* Footer */
+
+footer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  background: #000;
+  /* Keeps overscroll below the footer black now that the page background is white. */
+  box-shadow: 0 50vh 0 50vh #000;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0 20px;
+  width: 100%;
+  max-width: 1180px;
+  border-bottom: 1px solid var(--accent);
+}
+
+@media screen and (min-width: 768px) {
+  .footer-grid { grid-template-columns: repeat(8, 1fr); }
+}
+
+@media screen and (min-width: 1024px) {
+  .footer-grid { grid-template-columns: repeat(12, 1fr); }
+}
+
+.footer-brand {
+  display: flex;
+  align-items: flex-start;
+  grid-column: span 3;
+  grid-row-end: span 2;
+  margin-bottom: 40px;
+}
+
+.footer-brand a {
+  display: flex;
+  align-items: center;
+  color: #fff;
+  font-family: Montserrat, Roboto, Arial, Helvetica, sans-serif;
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.footer-brand img {
+  height: 52px;
+  margin-right: 10px;
+}
+
+.footer-spacer {
+  grid-column: span 1;
+  grid-row-end: span 2;
+}
+
+.footer-col {
+  grid-column: span 2;
+  margin-bottom: 40px;
+}
+
+.footer-col h5 {
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.footer-col a {
+  display: block;
+  margin-top: 8px;
+  color: #fff;
+}
+
+.footer-col a:hover {
+  color: var(--accent);
+}
+
+.legal {
+  width: 100%;
+  max-width: 1180px;
+  padding-top: 30px;
+  color: #999;
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+}
+
+.legal p + p {
+  margin-top: 0.4rem;
+}
+
+.legal a {
+  color: #bbb;
+}
