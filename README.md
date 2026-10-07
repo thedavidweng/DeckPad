@@ -24,8 +24,17 @@ the other way round. The two can be installed together.
 
 ## Installation
 
-Install **DeckPad** from the Decky Plugin Store. Everything it needs ships inside the plugin: no system
+Install **DeckPad** from the Decky Plugin Store: open the Quick Access menu (`…`), select the Decky tab,
+open the store, and install **DeckPad**. Everything it needs ships inside the plugin: no system
 packages, no changes to SteamOS's read-only files, no Desktop Mode setup.
+
+### Manual installation
+
+1. Download [`DeckPad.zip`](https://github.com/thedavidweng/DeckPad/releases/latest/download/DeckPad.zip)
+   from the [latest release](https://github.com/thedavidweng/DeckPad/releases/latest) and copy it to the
+   Deck.
+2. In Decky's settings, turn on **Developer mode** (General tab).
+3. On the **Developer** tab, next to **Install Plugin from ZIP File**, select **Browse** and pick the zip.
 
 ## Pairing a Host
 
@@ -106,6 +115,14 @@ message: [docs/troubleshooting.md](docs/troubleshooting.md).
 - Backend tests need `dbus-daemon` and Python 3.11 or newer: `mise x python@3.11 -- pnpm test`.
 - Frontend build: `pnpm i && pnpm build`. The store CI uses Node 20, pnpm 9, `pnpm i --frozen-lockfile`,
   and the [Decky CLI](https://github.com/SteamDeckHomebrew/cli).
+- Plugin zip, the same layout the store ships (needs `zip`):
+
+  ```sh
+  pnpm i --frozen-lockfile && pnpm build
+  mkdir -p out/DeckPad
+  cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
+  (cd out && zip -r DeckPad.zip DeckPad -x '*/__pycache__/*')
+  ```
 - Design decisions: `docs/adr/`. Vocabulary: `GLOSSARY.md`. Verification status and open unknowns:
   `docs/verification.md`. Vendored Python modules: `py_modules/README.md`.
 
