@@ -99,6 +99,29 @@ made. See the official
 [socket implementation](https://github.com/SteamDeckHomebrew/decky-loader/blob/v3.2.10/backend/decky_loader/localplatform/localsocket.py)
 and [systemd kill semantics](https://github.com/systemd/systemd/blob/main/man/systemd.kill.xml).
 
+### Bluetooth service recovery and cancellation
+
+Restarting the actual Bluetooth service while Controller Mode was ON produced one loss notification,
+RECOVERING, and a successful new Session with GATT, the input reader, the identity override and
+interval request. The first run logged an unobserved dbus-fast send Future error. Review found that
+DeckPad's synchronous unload Disconnect ignored its send result. Revision `255b4bc` now reads an
+immediate result or attaches a completion callback that records a delayed write error; the existing
+Peripheral close caller records immediate failures. This does not suppress dbus-fast's own internal
+send failures or prove that every such warning had the same source.
+
+Two regression tests first failed against the old implementation and then passed. The full Linux
+Python 3.12 suite passed **327 tests**, the related Bluetooth/lifecycle subset passed 36, and Ruff and
+whitespace checks passed. Deployed the changed `bluez.py` on top of the verified archive and reloaded
+DeckPad; the installed backend now includes this patch, while `out/DeckPad.zip` still contains the
+earlier code revision and must be rebuilt before release.
+
+A subsequent real Bluetooth restart recovered to ON with no unobserved-Future warning in that run;
+the Host was not HID-subscribed, so this is not proof of cleanup with active input delivery. Separately,
+stopping Bluetooth produced RECOVERING; setting Controller Mode OFF canceled recovery. After
+Bluetooth started again, DeckPad stayed OFF. Independent reads of the new daemon confirmed BlueZ's
+own identity, interval 24–40 and no recovery journal. Pairing records remained present. Active Host
+input/reconnect and unrelated peripheral coexistence still require their own acceptance checks.
+
 ## Module review
 
 Reviewed the final responsibilities, callers and cleanup paths. Protocol values and stable external
