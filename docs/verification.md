@@ -16,17 +16,62 @@ Every code change was committed independently after relevant tests passed. No co
 | Ruff 0.15.0 (`F`, `E9`), Python compilation, whitespace checks | Passed; D-Bus signature annotations suppress only their exact false-positive lines |
 | Actual official Decky CLI 0.0.7 ZIP | Final revision: 81 files verified, including backend bytes, API/root metadata and vendored licenses |
 | GitHub Actions | Workflow configured for Python 3.11/3.12, frontend checks, static checks and official packaging; not run remotely because nothing was pushed |
-| Decky embedded Python 3.11.7 | Fresh run pending; ordinary CPython 3.11.7 and the stripped-XML subprocess test are not a substitute |
+| Decky embedded Python 3.11.7 | Current archive loaded on LCD, Decky 3.2.10; dbus-fast 5.2.0, real GATT registration, hidraw input reader and MGMT calls succeeded |
 | Steam Deck LCD: startup, pairing, every Host-side control, disconnect/reconnect, exit, uninstall | Fresh run pending |
 | Gaming Mode QAM, focus capture, Steam/QAM buttons, all menu restoration paths, diagnostics copy | Fresh run pending |
 | Official Plugin Store testing and review | Not submitted or approved; third-party Stable/Beta reports and code-provenance eligibility remain open |
 
-Compared current stable [Decky v3.2.10 with v3.2.9](https://github.com/SteamDeckHomebrew/decky-loader/compare/v3.2.9...v3.2.10): the plugin lifecycle/API code did not change. The PyInstaller spec adds unrelated standard-library imports, not `xml.etree`. This source review does not establish embedded-runtime compatibility; the hardware baseline remains v3.2.9.
+Compared current stable [Decky v3.2.10 with v3.2.9](https://github.com/SteamDeckHomebrew/decky-loader/compare/v3.2.9...v3.2.10): the plugin lifecycle/API code did not change. The PyInstaller spec adds unrelated standard-library imports, not `xml.etree`. The fresh embedded-runtime check below establishes backend startup on 3.2.10; it does not establish every hardware acceptance gate.
 
 The current [Store addition template](https://github.com/SteamDeckHomebrew/decky-plugin-database/blob/main/.github/PULL_REQUEST_TEMPLATE/plugin_addition.md) requires developer verification on Stable and Beta, a third-party report on Stable or Beta for this Python/React architecture, and the declaration: “Generative AI was NOT used to write a majority of the code I am submitting.” This audit used AI assistance and cannot attest to the original code's provenance or the majority criterion. The maintainer must assess this honestly; no declaration or testing checkbox has been submitted. No messages, submission, release or push were made.
 
 The final gates remain open. Use the current audit results together with the historical evidence below;
 do not label this revision hardware-verified or Store-approved.
+
+### Fresh LCD checks — 2026-10-07, Stable
+
+Deployed the official CLI archive for code revision `72f3b69` (SHA-256
+`123e351e562cd52142aee046580fb4a08df12ea75027850c47c3351a8818e396`) to the
+existing DeckPad installation. All deployed package files match the archive; no extra source files
+were present. The previous installation is preserved at
+`/home/deck/DeckPad-before-audit-72f3b69`. No settings, paired-host records, unrelated plugins or
+Bluetooth configuration files were replaced.
+
+Setup: LCD, SteamOS 3.8.28 Stable build 20260922.1, kernel
+`6.18.50-valve2-1-neptune-618-gc7289a96b14d`, BlueZ 5.83, Decky 3.2.10 and its
+actual embedded Python 3.11.7. The Mac Host already had a DeckPad bond.
+
+- Startup succeeds with the vendored dbus-fast 5.2.0 and embedded XML support. Controller Mode
+  registers GATT, reads `/dev/hidraw2`, applies the identity override and requests interval 12–16.
+- Three consecutive ON/OFF cycles return the expected state without a reported backend error.
+- Independent read-only inspection after OFF finds exactly one original BlueZ identity and zero
+  Xbox identity matches in the daemon's writable image; MGMT reads interval 24–40 (30–50 ms).
+- Reload while ON restores DeviceID and interval, stops the backend, and loads a new backend OFF.
+  Diagnostics confirm the original interval and inactive override; the existing Host and Quit Combo
+  setting survive. No interval recovery journal remains in Decky's plugin runtime directory.
+- Diagnostics work both ON and OFF. Current text uses Host labels rather than exposing MAC addresses
+  in its structured summary.
+
+These checks used official Decky backend routes through the running Steam CEF, not QAM interactions.
+The existing Mac bond reaches BlueZ `Connected: yes`, but macOS displays the gamepad as not connected;
+DeckPad records **zero delivered reports / no Host subscribed**. This is not a successful HID
+reconnect or input test. A fresh pairing is pending user confirmation, followed by actual controls,
+QAM, focus, clipboard, Bluetooth recovery, abnormal termination and uninstall checks.
+
+Observed limitations: startup cleanup's `Device1.Disconnect` reaches its three-second timeout for this
+old Mac connection. Repeated loader reloads also print pending `WSRouter._call_route` task warnings
+in the newly created plugin process, before `DeckPad backend started`. Decky's
+[process creation](https://github.com/SteamDeckHomebrew/decky-loader/blob/v3.2.10/backend/decky_loader/plugin/plugin.py)
+and [new event loop initialization](https://github.com/SteamDeckHomebrew/decky-loader/blob/v3.2.10/backend/decky_loader/plugin/sandboxed_plugin.py)
+show that these are loader coroutines, not DeckPad task names. No loader patch or warning suppression
+was added; complete resource-leak acceptance remains open.
+
+For the repeated connection failure, considered a native Host reconnect, fresh pairing, selecting the
+LE bearer, and restarting Bluetooth. The Host's Connect action did not produce a HID subscription;
+fresh pairing is the next scoped check. Bearer changes or a service restart would affect broader
+Bluetooth state and were not used to hide the failure. BlueZ documents that
+[Device1 connection success may mean only one profile connected](https://github.com/bluez/bluez/blob/5.83/doc/org.bluez.Device.rst),
+so it cannot prove HID readiness.
 
 ## Module review
 
