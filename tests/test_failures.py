@@ -1,4 +1,4 @@
-"""Failures underneath a running Controller Mode, and what the user sees about them. Driven through the
+"""Failures while controller mode is on, and what the user sees about them. Driven through the
 plugin backend the way Decky and the QAM panel drive it, against a fake org.bluez that can be
 restarted or switched off."""
 
@@ -209,13 +209,13 @@ class StartStopStress(FailureCase):
 
 
 class TheNextLoadAfterTheBackendWasKilled(FailureCase):
-    """Decky SIGKILLs a plugin that is slow to stop, so nothing ran to disconnect the Host."""
+    """Decky SIGKILLs a plugin that is slow to stop, so nothing ran to disconnect the host."""
 
     async def kill_backend_with_a_host_connected(self):
         await self.plugin.set_controller_mode(True)
         device = await self.pair()
         await self.plugin._unload()
-        # A killed process never sends Disconnect, so the Host keeps its link to bluetoothd.
+        # A killed process never sends Disconnect, so the host keeps its link to bluetoothd.
         self.bluez.devices[device].update(connected=True)
         return device
 

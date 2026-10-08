@@ -1,4 +1,4 @@
-"""Controller Mode lifecycle, driven through the plugin backend the way Decky and the QAM panel drive it,
+"""Controller mode lifecycle, driven through the plugin backend the way Decky and the QAM panel drive it,
 and observed from BlueZ's side of the system bus."""
 
 import asyncio

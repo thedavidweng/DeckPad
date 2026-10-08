@@ -1,4 +1,4 @@
-"""What the Host receives for each Deck Control: Deck State Report in, Xbox 1914 Gamepad Report out.
+"""What the host receives for each Deck control: Deck input report in, Xbox 1914 gamepad report out.
 
 Expected values follow the Xbox Wireless Controller's BLE input report 0x01 as SDL and Linux read it:
 sticks are u16 centred at 0x8000 with Y pointing down, triggers are 10-bit, the hat counts clockwise
@@ -153,7 +153,7 @@ class ReportsThatAreNotDeckState(unittest.TestCase):
 
 
 class TheControllerScreensDrawing(unittest.TestCase):
-    """`describe` turns the report the Host gets into what the Controller Screen lights up."""
+    """`describe` turns the report the host gets into what the controller screen lights up."""
 
     def drawn(self, *buttons, **axes):
         return describe(gamepad_report(deck_state_report(*buttons, **axes)))

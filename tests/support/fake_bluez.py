@@ -190,7 +190,7 @@ class FakeBluez:
     def device(self, address=HOST_ADDRESS, name=HOST_NAME):
         """The Device1 object for a remote device, created the first time bluetoothd sees it.
 
-        Steam scans continuously, so a nearby Host often already has a Device1 object before it connects.
+        Steam scans continuously, so a nearby host often already has a Device1 object before it connects.
         """
         path = self._device_path(address)
         if path not in self.devices:
@@ -199,7 +199,7 @@ class FakeBluez:
         return self.devices[path]
 
     async def host_connects(self, address=HOST_ADDRESS, name=HOST_NAME):
-        """A Host picks the Deck from its Bluetooth list and opens an LE link to it."""
+        """A host picks the Deck from its Bluetooth list and opens an LE link to it."""
         adv = self.advertisement
         assert adv and adv.get("Discoverable"), "the Host cannot find the Deck: it is not discoverable"
         new = self._device_path(address) not in self.devices
@@ -214,17 +214,17 @@ class FakeBluez:
         return device.path
 
     async def host_reconnects(self, path):
-        """A Paired Host connects again on its own. It needs no scan list entry, only a connectable
+        """A paired host connects again on its own. It needs no scan list entry, only a connectable
         advertisement from the Deck, which it recognises by address."""
         assert self.advertisement, "the Host cannot reconnect: the Deck is not advertising"
         assert self.devices[path].paired, "only a Paired Host reconnects by itself"
         self.devices[path].update(connected=True)
 
     async def host_pairs(self, path):
-        """The Host asks to pair; bluetoothd hands Just Works pairing to the default agent.
+        """The host asks to pair; bluetoothd hands Just Works pairing to the default agent.
 
         Returns True if pairing completed. If the agent refuses (or it is Steam's agent, which stalls
-        with a passkey prompt nobody answers), the Host gives up and drops the link.
+        with a passkey prompt nobody answers), the host gives up and drops the link.
         """
         device = self.devices[path]
         sender, agent_path = self.default_agent
@@ -276,7 +276,7 @@ class FakeBluez:
         self.devices[path].update(connected=False)
 
     async def host_reads(self, uuid, index=0, device=None, descriptor=None):
-        """A Host reads a characteristic (or one of its descriptors) over GATT, the way BlueZ forwards it."""
+        """A host reads a characteristic (or one of its descriptors) over GATT, the way BlueZ forwards it."""
         ((sender, _app),) = self.applications.keys()
         path, _props = self.gatt_objects("org.bluez.GattCharacteristic1", uuid)[index]
         interface = "org.bluez.GattCharacteristic1"
@@ -309,19 +309,19 @@ class FakeBluez:
         )
 
     def gamepad_reports(self):
-        """Every Gamepad Report notified to Hosts so far, oldest first."""
+        """Every gamepad report notified to hosts so far, oldest first."""
         path = self.input_report_path()
         return [value for p, value in self.notifications if p == path]
 
     def handle_of(self, path):
-        """The ATT handle a Host discovers for a registered GATT object."""
+        """The ATT handle a host discovers for a registered GATT object."""
         ((_key, handles),) = self.handles.items()
         return handles[path]
 
     async def host_subscribes(self, path=None, handle=None):
-        """The Host writes the input report's CCCD; bluetoothd turns that into StartNotify.
+        """The host writes the input report's CCCD; bluetoothd turns that into StartNotify.
 
-        A Host that kept its GATT cache from an earlier connection names the report by `handle`. If no
+        A host that kept its GATT cache from an earlier connection names the report by `handle`. If no
         registered characteristic has that handle any more, bluetoothd answers Invalid Handle.
         """
         ((sender, _app),) = self.applications.keys()

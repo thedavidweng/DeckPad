@@ -2,7 +2,7 @@
 
 The layout mirrors the real Deck. Three hidraw interfaces share the Valve VID/PID 28DE:1205; the lizard
 keyboard and mouse have an `input/` child, and only the raw controller interface (hidraw2) does not.
-The node is a FIFO that the test writes Deck State Reports into.
+The node is a FIFO that the test writes Deck input reports into.
 """
 
 import os

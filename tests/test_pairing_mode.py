@@ -1,4 +1,4 @@
-"""Pairing Mode: a new Host finds the Deck in its normal Bluetooth settings and pairs with it as a controller,
+"""Pairing mode: a new host finds the Deck in its normal Bluetooth settings and pairs with it as a controller,
 while the QAM panel shows what is happening. Driven through the plugin backend, observed from BlueZ's side."""
 
 import asyncio
@@ -82,7 +82,7 @@ class FirstPairing(PluginTestCase):
         self.assertIsNone(state["pairing"]["error"])
 
     async def test_the_panel_shows_the_hosts_name_once_bluetooth_learns_it(self):
-        # bluetoothd only learns a new Host's name after the link is up; until then its Alias is the
+        # bluetoothd only learns a new host's name after the link is up; until then its Alias is the
         # address with dashes.
         device = await self.bluez.host_connects(name="38-F9-D3-C3-E9-69")
         await self.bluez.host_pairs(device)
@@ -173,7 +173,7 @@ class PairingFailures(PluginTestCase):
         self.assertIsNone(self.bluez.advertisement)
 
     async def test_a_host_whose_name_is_unknown_is_called_the_other_device(self):
-        # A Host with a stale bond fails encryption before bluetoothd ever learns its name.
+        # A host with a stale bond fails encryption before bluetoothd ever learns its name.
         await self.plugin.set_pairing_mode(True)
         device = await self.bluez.host_connects(name="38-F9-D3-C3-E9-69")
         await settled(self.plugin, "pairing")
@@ -302,7 +302,7 @@ class LeavingWithAPairedHostConnected(PluginTestCase):
 
 
 class APairedHostInALaterSession(PluginTestCase):
-    """A Paired Host reconnects with its cached GATT database: it reads nothing and never meets the agent."""
+    """A paired host reconnects with its cached GATT database: it reads nothing and never meets the agent."""
 
     async def pair_then_restart(self, reload_plugin):
         await self.plugin.set_controller_mode(True)
@@ -340,7 +340,7 @@ class APairedHostInALaterSession(PluginTestCase):
 
 
 async def settled(plugin, status, timeout=2.0):
-    """The backend state once Pairing Mode reaches `status` (Bluetooth events arrive asynchronously)."""
+    """The backend state once pairing mode reaches `status` (Bluetooth events arrive asynchronously)."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:

@@ -1,4 +1,4 @@
-"""Everyday connection management from the QAM panel: which Paired Host is connected, a returning Host
+"""Everyday connection management from the QAM panel: which paired host is connected, a returning host
 reconnecting without pairing again, Disconnect, and Forget. Driven through the plugin backend, observed
 from BlueZ's side."""
 
@@ -21,7 +21,7 @@ def deckpad_work_in_progress():
 
 class ConnectionsCase(PluginTestCase):
     async def pair(self, address=HOST_ADDRESS, name=HOST_NAME):
-        """A Host pairs through Pairing Mode, the way a new user sets it up."""
+        """A host pairs through pairing mode, the way a new user sets it up."""
         await self.plugin.set_pairing_mode(True)
         device = await self.bluez.host_connects(address, name)
         await self.bluez.host_pairs(device)
@@ -80,7 +80,7 @@ class ConnectionStatus(ConnectionsCase):
 
 
 class AReturningHost(ConnectionsCase):
-    """A Paired Host comes back in a later Controller Mode session, or after its link dropped."""
+    """A paired host comes back in a later controller mode session, or after its link dropped."""
 
     async def asyncSetUp(self):
         await super().asyncSetUp()

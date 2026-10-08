@@ -1,4 +1,4 @@
-"""What a Host finds when it discovers the Deck's GATT services while Controller Mode is on (ADR-0001, ADR-0002)."""
+"""What a host finds when it discovers the Deck's GATT services while controller mode is on."""
 
 import unittest
 

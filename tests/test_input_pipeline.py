@@ -1,4 +1,4 @@
-"""Deck Controls reach the Connected Host: the controller's hidraw node in, GATT notifications out.
+"""The Deck's controls reach the connected host: the controller's hidraw node in, GATT notifications out.
 
 Driven through the plugin backend with a fake controller node and a fake org.bluez on a private bus.
 """
@@ -105,7 +105,7 @@ class AConnectedHostReceivesTheDeckControls(InputCase):
         start = loop.time()
         n = 0
         while loop.time() - start < 1.0:
-            # A stick sweeping without pause: every Deck State Report differs from the last.
+            # A stick sweeping without pause: every Deck input report differs from the last.
             self.controller.send(deck_state_report(lx=n * 100 - 30000))
             n += 1
             await asyncio.sleep(0.004)
@@ -118,9 +118,9 @@ class AConnectedHostReceivesTheDeckControls(InputCase):
 
 
 class AHostReturningInALaterSession(InputCase):
-    """A Paired Host keeps the GATT database it discovered and reuses it when it reconnects. On the Deck,
-    bluetoothd's Database Hash stops updating once its handles pass 1023, so the Host never learns of
-    a new layout; the HID service must come back at the handles the Host already knows."""
+    """A paired host keeps the GATT database it discovered and reuses it when it reconnects. On the Deck,
+    bluetoothd's Database Hash stops updating once its handles pass 1023, so the host never learns of
+    a new layout; the HID service must come back at the handles the host already knows."""
 
     async def test_reports_reach_it_after_controller_mode_is_turned_off_and_on(self):
         device = await self.connect_host()
@@ -210,7 +210,7 @@ QUIT_COMBO_HELD = bytes.fromhex("00800080008000800000000000c00c00")
 
 
 class TheQuitCombo(InputCase):
-    """Menu + View + L1 + R1 held together, as Moonlight's quit combo: leaves Controller Mode from the
+    """Menu + View + L1 + R1 held together, as Moonlight's quit combo: leaves controller mode from the
     Deck's controls alone, even when Steam's UI on the Deck is not responding to them."""
 
     async def test_it_turns_controller_mode_off(self):
@@ -224,7 +224,7 @@ class TheQuitCombo(InputCase):
     async def test_the_host_is_left_with_nothing_held(self):
         await self.connect_host()
         await self.press(deck_state_report("A"), until=lambda: A_HELD in self.bluez.gamepad_reports())
-        # Controller Mode off unregisters the GATT application, so note where the reports went first.
+        # Controller mode off unregisters the GATT application, so note where the reports went first.
         path = self.bluez.input_report_path()
 
         await self.press(deck_state_report(*QUIT_COMBO), until=lambda: self.plugin_status() != "on")
@@ -276,7 +276,7 @@ class TheQuitCombo(InputCase):
 
 
 class TheControllerScreensPreview(InputCase):
-    """While the Controller Screen watches, it gets the Gamepad Reports going to the Host (ADR-0013)."""
+    """While the controller screen watches, it gets the gamepad reports going to the host."""
 
     def previews(self):
         return [args[0] for event, *args in self.decky.events if event == "gamepad_report"]

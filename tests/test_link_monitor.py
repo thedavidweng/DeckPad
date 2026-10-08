@@ -1,6 +1,6 @@
-"""Pacing Gamepad Reports to the Connected Host's actual connection interval (ADR-0008).
+"""Pacing gamepad reports to the connected host's actual connection interval.
 
-The link carries about one notification per connection event at worst, and the Host decides the
+The link carries about one notification per connection event at worst, and the host decides the
 interval (it may refuse DeckPad's request). DeckPad learns it from the controller's HCI events.
 HCI packets below follow the Bluetooth Core spec, Vol 4 Part E 7.7 (with the H:4 packet type byte).
 """
@@ -64,7 +64,7 @@ class LinkCase(unittest.IsolatedAsyncioTestCase):
 class PacingToTheConnectedHost(LinkCase):
     async def test_until_a_host_connects_the_pace_is_conservative(self):
         self.assertEqual(self.monitor.report_interval(), FALLBACK_REPORT_INTERVAL)
-        # Safe even for the longest interval seen on a Host (48.75 ms).
+        # Safe even for the longest interval seen on a host (48.75 ms).
         self.assertGreaterEqual(FALLBACK_REPORT_INTERVAL, 0.05)
 
     async def test_a_host_at_its_default_interval_gets_about_one_report_per_connection_event(self):

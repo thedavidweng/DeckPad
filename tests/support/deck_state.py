@@ -1,4 +1,4 @@
-"""Deck State Reports as the Deck's built-in controller sends them on its hidraw node (ADR-0003).
+"""Deck input reports as the Deck's built-in controller sends them on its hidraw node.
 
 Offsets and bits follow the controller's 64-byte 0x09 report, as documented by the kernel's hid-steam
 driver: buttons in bytes 8-14, then signed 16-bit triggers and sticks from byte 44, with the stick Y
@@ -36,7 +36,7 @@ _BUTTON_BITS = {
 
 
 def deck_state_report(*buttons, lt=0, rt=0, lx=0, ly=0, rx=0, ry=0, seq=0):
-    """A Deck State Report with these buttons held. Stick Y is positive when pushed up, as on the Deck."""
+    """A Deck input report with these buttons held. Stick Y is positive when pushed up, as on the Deck."""
     data = bytearray(64)
     data[0] = 0x01
     data[2] = 0x09

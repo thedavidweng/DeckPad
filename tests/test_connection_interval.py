@@ -1,7 +1,7 @@
-"""Asking Hosts for a shorter connection interval while Controller Mode is on (ADR-0008).
+"""Asking hosts for a shorter connection interval while controller mode is on.
 
-The kernel sends the Deck's LE connection interval range to every Host that connects (an L2CAP
-Connection Parameter Update Request), so DeckPad sets that range while Controller Mode is on and puts
+The kernel sends the Deck's LE connection interval range to every host that connects (an L2CAP
+Connection Parameter Update Request), so DeckPad sets that range while controller mode is on and puts
 the adapter's own values back afterwards, even if the plugin was killed in between.
 """
 
@@ -70,7 +70,7 @@ class RequestingAShorterInterval(unittest.TestCase):
 
 
 class NotWhilePairing(unittest.TestCase):
-    """A Host that switches interval in the middle of pairing can drop the link and cancel the pairing."""
+    """A host that switches interval in the middle of pairing can drop the link and cancel the pairing."""
 
     def setUp(self):
         self.kernel = FakeMgmtKernel(index=0, conn_interval=(24, 40))

@@ -1,5 +1,5 @@
-"""bluetoothd's own Device Information Service reports the Controller Identity while Controller Mode is on,
-and BlueZ's identity again afterwards (ADR-0006). Exercised against a stand-in for bluetoothd's /proc entry."""
+"""bluetoothd's own Device Information Service reports the Xbox identity while controller mode is on,
+and BlueZ's identity again afterwards. Exercised against a stand-in for bluetoothd's /proc entry."""
 
 import os
 import struct

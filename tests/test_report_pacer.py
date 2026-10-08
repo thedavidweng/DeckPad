@@ -1,4 +1,4 @@
-"""Pacing Gamepad Reports to what the Bluetooth link carries.
+"""Pacing gamepad reports to what the Bluetooth link carries.
 
 BlueZ queues notifications without bound, so anything sent faster than the link delivers arrives later
 and later. The pacer keeps only the latest state, sends it only when it changed, and never sends more
@@ -14,7 +14,7 @@ INTERVAL = 0.05
 
 
 class Link:
-    """Stands in for the Connected Host: records what was sent, or refuses while nobody listens."""
+    """Stands in for the connected host: records what was sent, or refuses while nobody listens."""
 
     def __init__(self):
         self.sent = []
@@ -101,7 +101,7 @@ class PacingGamepadReports(unittest.IsolatedAsyncioTestCase):
         link_interval = [INTERVAL]
         pacer = ReportPacer(self.link.send, lambda: link_interval[0])
         self.addCleanup(pacer.close)
-        # The link slows down (for example, a Host that kept a long connection interval).
+        # The link slows down (for example, a host that kept a long connection interval).
         link_interval[0] = INTERVAL * 4
         loop = asyncio.get_running_loop()
         start = loop.time()
