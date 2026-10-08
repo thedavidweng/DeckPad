@@ -1,8 +1,6 @@
-"""Diagnostics for the panel's Troubleshooting section: a few label/value pairs to show, and a plain-text
-report to copy or attach to a bug report.
+"""The Troubleshooting section's summary and the plain-text report users attach to bug reports.
 
-Collecting them only reads state. Nothing here changes Bluetooth, and it works whether or not
-Controller Mode is on or bluetoothd is running.
+Only reads state, and works whether or not controller mode is on or bluetoothd is running.
 """
 
 import asyncio

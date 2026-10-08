@@ -5,11 +5,11 @@ import { GamepadOutline } from "./gamepad_outline";
 
 export const CONTROLLER_SCREEN_ROUTE = "/deckpad/controller";
 
-// Steam keeps reacting to the Deck's controls while they also go to the Host (ADR-0003). This screen
-// holds Steam's focus on one element that consumes every button and direction Steam's UI navigation
-// hands it, so the library or menus behind it do not move. While the Quit Combo is on, it also turns
-// off the Steam and … buttons' menus with Steam's own switch (ADR-0014), and the Quit Combo is the way
-// out; otherwise those two buttons still open Steam's menus.
+// Steam keeps reacting to the Deck's controls while they also go to the host. This screen holds
+// Steam's focus on one element that consumes every button and direction Steam's UI navigation hands
+// it, so the library or menus behind it do not move. While the quit combo is on, it also turns off the
+// Steam and … buttons' menus with Steam's own switch, and the quit combo is the way out; otherwise
+// those two buttons still open Steam's menus.
 
 const STEAM_MENU_BUTTONS = new Set<number | undefined>([GamepadButton.STEAM_GUIDE, GamepadButton.STEAM_QUICK_MENU]);
 
@@ -31,7 +31,6 @@ function steamMenuButtonsSwitch(): SteamMenuButtonsSwitch | null {
 
 let steamMenusOff = false;
 
-// Returns whether the menus are off now.
 function setSteamMenusOff(off: boolean): boolean {
   const steamSwitch = steamMenuButtonsSwitch();
   if (!steamSwitch) return false;
@@ -90,7 +89,7 @@ function headline(state: ControllerModeState | null): [string, string] {
 
 export function ControllerScreen() {
   const state = useControllerModeState();
-  // Only while Controller Mode is on: otherwise B goes back as usual.
+  // Only while controller mode is on; otherwise B goes back as usual.
   const capturing = state?.status === "on" || state?.status === "recovering";
   const [title, detail] = headline(state);
   const report = useGamepadPreview(capturing);
@@ -110,7 +109,7 @@ export function ControllerScreen() {
     return () => setScreenOpen(false);
   }, []);
 
-  // When Controller Mode turns off (for example by the Quit Combo), there is nothing left to hold focus for.
+  // Leave once controller mode turns off, for example through the quit combo.
   const wasCapturing = useRef(capturing);
   useEffect(() => {
     if (wasCapturing.current && !capturing && state !== null) Navigation.NavigateBack();
@@ -169,8 +168,8 @@ export function ControllerScreen() {
         </div>
       )}
       {capturing && (
-        // Touch only, so it does not take Steam's focus from the screen. A way out that needs neither
-        // Steam's menus nor the backend.
+        // Touch only, so it does not take Steam's focus from the screen. Works without Steam's menus
+        // or the backend.
         <div
           onClick={closeControllerScreen}
           style={{ fontSize: "14px", padding: "6px 24px", borderRadius: "4px", background: "rgba(255,255,255,0.1)" }}

@@ -1,4 +1,4 @@
-"""DeckPad's BlueZ pairing agent, the default agent only while Controller Mode is on (ADR-0005)."""
+"""DeckPad's BlueZ pairing agent. It is the default agent only while controller mode is on."""
 
 from dbus_fast.errors import DBusError
 from dbus_fast.service import ServiceInterface, method
@@ -8,10 +8,10 @@ _REJECTED = "org.bluez.Error.Rejected"
 
 
 class PairingAgent(ServiceInterface):
-    """Accepts Just Works pairing only while Pairing Mode is open, and refuses it at any other time.
+    """Accepts Just Works pairing only while pairing mode is open.
 
     While this agent is the default, it also receives pairing requests a user starts from Steam's
-    Bluetooth settings, so it must never accept outside an explicit Pairing Mode. `allow_pairing` and
+    Bluetooth settings, so it must never accept outside pairing mode. `allow_pairing` and
     `allow_service` are called with the device's object path and answer synchronously.
     """
 
@@ -56,7 +56,7 @@ class PairingAgent(ServiceInterface):
     @method()
     def AuthorizeService(self, device: "o", uuid: "s"):
         # BlueZ asks this only for paired but untrusted devices, so the user's trusted peripherals never
-        # get here. Only Paired Hosts, or a Host pairing in Pairing Mode, are let through (ADR-0005).
+        # get here.
         if not self._allow_service(device):
             raise DBusError(_REJECTED, "Not a Paired Host")
 

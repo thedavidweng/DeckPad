@@ -1,7 +1,7 @@
-"""Asking Hosts for a 15-20 ms LE connection interval while Controller Mode is on (ADR-0008).
+"""Asks hosts for a 15-20 ms LE connection interval while controller mode is on.
 
-When a Host connects, the kernel compares the connection's interval with the adapter's default LE
-connection interval range and, if it falls outside, sends the Host an L2CAP Connection Parameter Update
+When a host connects, the kernel compares the connection's interval with the adapter's default LE
+connection interval range and, if it falls outside, sends the host an L2CAP Connection Parameter Update
 Request for that range (net/bluetooth/l2cap_core.c, l2cap_le_conn_ready). The range is the same one
 main.conf's [LE] Min/MaxConnectionInterval set, and the MGMT Set Default System Configuration command
 changes it at runtime (root only). The adapter's previous range is saved to a file first, so a later
@@ -19,7 +19,7 @@ from .hci_socket import HCI_CHANNEL_CONTROL, HCI_DEV_NONE, open_hci_socket
 log = logging.getLogger("deckpad.connection_interval")
 
 # 1.25 ms units: 15-20 ms. 8.75-11.25 ms carried more reports but made links drop right after the
-# update more often on the tested Host (ADR-0008).
+# update more often on the tested host.
 REQUESTED = (12, 16)
 
 _READ_DEF_SYSTEM_CONFIG = 0x004B
@@ -103,7 +103,7 @@ class IntervalRequest:
 
 
 def request(index, state_path, open_socket=open_mgmt_socket):
-    """Ask Hosts that connect from now on for the REQUESTED interval. Returns None if that is not possible."""
+    """Ask hosts that connect from now on for the REQUESTED interval. Returns None if that is not possible."""
     try:
         mgmt = _Mgmt(open_socket)
     except Exception as e:
@@ -125,10 +125,10 @@ def request(index, state_path, open_socket=open_mgmt_socket):
 
 
 class ShorterInterval:
-    """The request, held only while Pairing Mode is not accepting new Hosts.
+    """The request, held only while pairing mode is closed.
 
-    On the tested Host the switch to the shorter interval sometimes dropped the link, and a drop
-    during pairing cancels the pairing. Paired Hosts reconnecting recover by reconnecting again.
+    On the tested host the switch to the shorter interval sometimes dropped the link, and a drop
+    during pairing cancels the pairing. A paired host that drops simply reconnects.
     """
 
     def __init__(self, index, state_path, open_socket=open_mgmt_socket):
@@ -162,7 +162,7 @@ def current(index, open_socket=open_mgmt_socket):
 
 
 def restore_leftover(state_path, open_socket=open_mgmt_socket):
-    """At backend start, undo a request that a killed DeckPad process left in place. Returns whether it did."""
+    """Undo a request that a killed DeckPad process left in place. Returns whether it did."""
     try:
         with open(state_path) as f:
             saved = json.load(f)

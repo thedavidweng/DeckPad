@@ -6,11 +6,8 @@ SESSION_LOST_TITLE = "Controller Mode turned off"
 
 
 class ControllerModeError(Exception):
-    """A failure the QAM panel can explain to the user.
-
-    `code` is stable for the frontend; `title` and `message` are user-facing (the message says what to
-    do next); `detail` is for logs and diagnostics.
-    """
+    """`code` is stable for the frontend; `title` and `message` are shown to the user (the message says
+    what to do next); `detail` is for logs and diagnostics."""
 
     def __init__(self, code, message, detail=None, title=START_FAILED_TITLE):
         super().__init__(message)
@@ -91,8 +88,7 @@ def start_failed(detail=None):
 
 
 def session_lost(cause):
-    """Bluetooth went away underneath a running Controller Mode and did not come back; `cause` is why the
-    last attempt to resume failed."""
+    """Bluetooth went away and did not come back; `cause` is why the last attempt to resume failed."""
     detail = "%s: %s" % (cause.code, cause.detail) if cause.detail else cause.code
     if cause.code == "bluetooth_off":
         return ControllerModeError(

@@ -1,10 +1,7 @@
-"""Controller Mode: the user-facing on/off state and the lifecycle of the Peripheral session behind it.
+"""Turns controller mode on and off and runs the Bluetooth session behind it.
 
-Status moves off -> starting -> on -> stopping -> off. A failed start returns to off with an error the
-QAM panel can show; the error clears on the next attempt. If Bluetooth goes away underneath a running
-session (bluetoothd restarts, the adapter is switched off), status moves on -> recovering -> on once it
-is back, or -> off with an error if it does not come back in time. Transitions are serialised, so
-requests that arrive mid-transition are applied in order against the settled state.
+If Bluetooth goes away while it is on (bluetoothd restarts, the adapter is switched off), the session
+is rebuilt once Bluetooth is back, or controller mode turns off with an error if that takes too long.
 """
 
 import asyncio
@@ -37,8 +34,8 @@ RECOVERING = "recovering"
 START_TIMEOUT = 10.0
 STOP_TIMEOUT = 5.0
 UNINSTALL_TIMEOUT = 3.0
-# How long Controller Mode waits for Bluetooth to come back after it went away underneath it, and how
-# often it checks. A `systemctl restart bluetooth` takes a few seconds.
+# How long to wait for Bluetooth to come back, and how often to check. `systemctl restart bluetooth`
+# takes a few seconds.
 RECOVERY_TIMEOUT = 20.0
 RECOVERY_RETRY_DELAY = 1.0
 
@@ -59,8 +56,8 @@ class ControllerMode:
         settings=None,
         on_gamepad_report=None,
     ):
-        """`on_gamepad_report(described_report)`, a coroutine function, gets the Gamepad Reports going to the
-        Host while a Controller Screen watches them (see `watch_gamepad`)."""
+        """`on_gamepad_report(described_report)` is a coroutine function. It gets the reports sent to the
+        host while the controller screen is open (see `watch_gamepad`)."""
         self._on_change = on_change
         self._interval_state_path = interval_state_path
         self._paired_hosts = paired_hosts if paired_hosts is not None else PairedHosts()
@@ -77,7 +74,7 @@ class ControllerMode:
         self._link = None
         self._shorter_interval = None
         self._watch = None
-        # Gamepad Reports of the current session, for diagnostics.
+        # Report counts for the current session, for diagnostics.
         self._reports = _ReportCount()
         self._tasks = Tasks()
         self._closed = False
@@ -86,12 +83,10 @@ class ControllerMode:
         self._connections = Connections(self._paired_hosts, self._pairing, on_change=self._changed)
 
     def _record_error(self, error):
-        """Show `error` on the panel, and keep it for diagnostics after the panel has cleared it."""
         self._error = error
         self._error_history.append(error)
 
     def diagnostics(self):
-        """Internal state for the Troubleshooting surface; not part of the panel's normal state."""
         errors_seen = list(self._error_history)
         for error in (self._connections.error, self._pairing.error):
             if error is not None and error not in errors_seen:
@@ -146,13 +141,13 @@ class ControllerMode:
         return self.snapshot()
 
     async def set_quit_combo(self, enabled):
-        """Whether the Quit Combo turns Controller Mode off, or goes to the Host like any other press."""
+        """When off, the quit combo goes to the host like any other press."""
         self._settings.set_quit_combo(enabled)
         await self._changed()
         return self.snapshot()
 
     def watch_gamepad(self, enabled):
-        """Whether the Gamepad Reports going to the Host are forwarded to `on_gamepad_report`."""
+        """Whether reports sent to the host are also passed to `on_gamepad_report`."""
         if not self._closed:
             self._preview.watch(enabled)
 
@@ -162,11 +157,11 @@ class ControllerMode:
             self._tasks.spawn(self.set_enabled(False))
 
     async def set_pairing_mode(self, enabled):
-        """Open or close Pairing Mode. It only exists while Controller Mode is on; otherwise this does nothing."""
+        """Does nothing unless controller mode is on."""
         async with self._lock:
             if self._status == ON:
                 if enabled:
-                    # Before the advertisement goes up, so a Host connecting to pair keeps its interval.
+                    # Before the advertisement goes up, so a host connecting to pair keeps its interval.
                     self._update_interval(pairing=True)
                     await self._pairing.open()
                 else:
@@ -174,14 +169,14 @@ class ControllerMode:
         return self.snapshot()
 
     async def disconnect_host(self, address):
-        """Disconnect a Connected Host from the panel; it stays a Paired Host."""
+        """The host stays paired."""
         async with self._lock:
             if self._status == ON:
                 await self._run(self._connections.disconnect(address), errors.disconnect_failed, address)
         return self.snapshot()
 
     async def forget_host(self, address):
-        """Remove a Paired Host and its pairing on the Deck. Works whether or not Controller Mode is on."""
+        """Remove a host's pairing on the Deck, with controller mode on or off."""
         async with self._lock:
             if self._status == ON:
                 await self._run(self._connections.forget(address), errors.forget_failed, address)
@@ -196,10 +191,10 @@ class ControllerMode:
         return self.snapshot()
 
     async def clean_up_after_previous_run(self):
-        """At backend start: undo what a previous backend that was killed left behind.
+        """Undo what a killed previous backend left behind.
 
-        Decky SIGKILLs plugins that are slow to stop, and then nothing restored bluetoothd's DeviceID or
-        the adapter's connection interval, or disconnected the Paired Host that was connected.
+        Decky SIGKILLs plugins that are slow to stop, and then nothing restores bluetoothd's DeviceID or
+        the adapter's connection interval, or disconnects the host that was connected.
         """
         async with self._lock:
             if self._status != OFF:
@@ -214,7 +209,6 @@ class ControllerMode:
                     log.info("Restored the adapter's connection interval left over from a previous run")
 
     async def _run(self, action, failure, address=None):
-        """Run a panel action; if it fails, the panel says what went wrong instead of nothing happening."""
         try:
             await action
         except Exception as e:
@@ -228,7 +222,7 @@ class ControllerMode:
         await self._changed()
 
     def shutdown(self):
-        """Return the Deck to ordinary SteamOS Bluetooth behaviour immediately, for plugin unload.
+        """Return Bluetooth to normal immediately, for plugin unload.
 
         This must not wait on the event loop. Decky Loader 3.2.9 closes the plugin's socket while
         `_unload` runs, and its socket reader then spins without yielding, so awaited D-Bus replies and
@@ -244,8 +238,7 @@ class ControllerMode:
         log.info("Controller Mode off (unload)")
 
     def uninstall(self):
-        """Remove what DeckPad leaves on the Deck, for plugin uninstall: the pairings of Paired Hosts (and
-        nothing else), leftovers of a killed run, and DeckPad's state and settings files.
+        """Remove the pairings DeckPad made (and no others), leftovers of a killed run, and DeckPad's files.
 
         Decky runs this right after `_unload`, with the event loop just as stuck (see `shutdown`), so the
         Bluetooth part runs on its own event loop in a worker thread, joined with a timeout that keeps
@@ -288,10 +281,7 @@ class ControllerMode:
             await self._set_status(ON)
 
     async def _open_session(self):
-        """Start a Peripheral and everything that runs with it. Returns False if unload began meanwhile.
-
-        On failure everything is released again and the ControllerModeError is raised.
-        """
+        """Returns False if unload began meanwhile. On failure, releases everything and raises."""
         peripheral = Peripheral(
             listener=_Listeners(self._pairing, self._connections, self._paired_hosts), paired_hosts=self._paired_hosts
         )
@@ -300,7 +290,7 @@ class ControllerMode:
         self._watch = watch
         try:
             await asyncio.wait_for(peripheral.start(), self._start_timeout)
-            # After the Peripheral: a loss during its start already fails the start.
+            # Started second: losing Bluetooth while the peripheral starts already fails the start.
             await asyncio.wait_for(watch.start(), self._start_timeout)
         except errors.ControllerModeError as e:
             error = e
@@ -315,7 +305,7 @@ class ControllerMode:
                 peripheral.close()
                 return False
             # Input first: the connection interval range must be set before any advertisement lets a
-            # Host connect, because the kernel only asks for it when the connection comes up.
+            # host connect, because the kernel only asks for it when the connection comes up.
             self._start_deck_controls(peripheral)
             self._pairing.attach(peripheral)
             self._connections.attach(peripheral)
@@ -329,10 +319,8 @@ class ControllerMode:
         raise error
 
     def _end_session(self, keep_peripheral=False):
-        """Release everything the session runs. Synchronous, so it also serves plugin unload.
-
-        With `keep_peripheral`, the Peripheral is returned still open, for an orderly `stop()`.
-        """
+        """Synchronous, so it can run during plugin unload. With `keep_peripheral`, the peripheral is
+        returned still open so `_stop` can tear it down in order."""
         self._pairing.detach()
         self._connections.detach()
         self._stop_deck_controls()
@@ -365,12 +353,8 @@ class ControllerMode:
             self._tasks.spawn(self._recover(watch, reason))
 
     async def _recover(self, watch, reason):
-        """Bluetooth went away underneath the session: drop it, and start a new one once Bluetooth is back.
-
-        bluetoothd forgets every registration when it restarts and an adapter that powers off drops
-        every link, so there is nothing to keep. Controller Mode stays on from the user's point of view
-        while it waits; if Bluetooth does not come back in time, it turns off with an error.
-        """
+        """bluetoothd forgets every registration when it restarts, and an adapter that powers off drops
+        every link, so nothing of the old session is worth keeping."""
         async with self._lock:
             # The lock also waits out a start that is still finishing with this watch.
             if self._closed or self._status != ON or self._watch is not watch:
@@ -400,7 +384,7 @@ class ControllerMode:
 
     async def _pairing_changed(self):
         self._update_interval(pairing=self._pairing.accepting)
-        # Once Pairing Mode stops accepting, Paired Hosts get their reconnect advertisement back.
+        # Once pairing mode closes, paired hosts get their reconnect advertisement back.
         await self._connections.reconcile()
         await self._changed()
 
@@ -437,7 +421,6 @@ class ControllerMode:
             self._tasks.spawn(self._changed())
 
     def _stop_deck_controls(self):
-        """Synchronous, so it also serves plugin unload."""
         if self._deck_controls is not None:
             self._deck_controls.stop()
             self._deck_controls = None
@@ -471,11 +454,7 @@ async def _ignore(_):
 
 
 class _Listeners:
-    """Pairing Mode decides pairing requests; both Pairing Mode and Connections follow Device1 changes.
-
-    A device may use the Deck's services while Pairing Mode accepts new Hosts, or if it is a Paired Host
-    (ADR-0005).
-    """
+    """A device may use the Deck's services while pairing mode is open, or if it is a paired host."""
 
     def __init__(self, pairing, connections, paired_hosts):
         self._pairing = pairing

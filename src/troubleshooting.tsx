@@ -36,7 +36,6 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-// Collapsed by default, below everything else, so it never competes with the normal controls.
 export function Troubleshooting() {
   const [open, setOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);

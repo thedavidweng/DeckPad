@@ -40,7 +40,7 @@ class BluezError(Exception):
 
 @contextlib.asynccontextmanager
 async def temporary_connection():
-    """A system bus connection for one piece of work outside a Controller Mode session, closed afterwards."""
+    """A system bus connection for one piece of work while controller mode is off, closed afterwards."""
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
     try:
         yield bus
@@ -127,8 +127,7 @@ def send_disconnect_device(bus, device_path):
 
 
 async def watch_devices(bus):
-    """Subscribe to bluetoothd's Device1 changes. Do this before reading current state, or a Host that
-    connects in between is missed."""
+    """Do this before reading current state, or a host that connects in between is missed."""
     for rule in (
         "type='signal',sender='%s',interface='org.freedesktop.DBus.ObjectManager'" % SERVICE,
         "type='signal',sender='%s',interface='org.freedesktop.DBus.Properties',"

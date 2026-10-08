@@ -3,15 +3,15 @@ import { FC } from "react";
 import { FaGamepad } from "react-icons/fa";
 import { GamepadPreview } from "./backend";
 
-// Steam's own Xbox controller drawing, from the icons module its Test Device Inputs page draws with
-// (ADR-0013). It is not part of Decky's API, so the screen falls back to a plain icon if Steam renames it.
+// Steam's own Xbox controller drawing, from the icons module its Test Device Inputs page uses. It is
+// not part of Decky's API, so the screen falls back to a plain icon if Steam renames it.
 const XboxOutline: FC<Record<string, unknown>> | undefined = IconsModule?.XboxOneControllerFrontOutline;
 
 // Below this a trigger counts as released, as Steam's own trigger glyphs do for resting noise.
 const TRIGGER_LIT = 0.05;
 
 const WIDTH = 360;
-// The drawing's own aspect ratio (its viewBox is 999 x 701).
+// The drawing's viewBox is 999 x 701.
 const HEIGHT = Math.round((WIDTH * 701) / 999);
 
 export function GamepadOutline({ report }: { report: GamepadPreview | null }) {

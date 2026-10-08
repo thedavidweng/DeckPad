@@ -1,4 +1,4 @@
-"""Controller Identity (ADR-0002): Xbox Wireless Controller, model 1914, BLE firmware."""
+"""The controller DeckPad presents itself as: Xbox Wireless Controller, model 1914, BLE firmware."""
 
 import struct
 

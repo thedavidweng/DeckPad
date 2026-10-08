@@ -1,4 +1,4 @@
-"""The Deck's Bluetooth Peripheral role: everything DeckPad registers with BlueZ for one Controller Mode session.
+"""Everything DeckPad registers with BlueZ for one controller mode session.
 
 Each session owns its own system-bus connection. BlueZ binds every registration to the connection
 that made it, so closing the connection is the backstop that releases anything a failed or
@@ -29,7 +29,7 @@ _REPORT_TYPE_OUTPUT = 0x02
 _DEVICE_KEYS = ("Address", "Alias", "Name", "Connected", "Paired")
 
 # Fixed ATT handles for DeckPad's services. Without them bluetoothd puts each registration above the
-# highest handle it has ever used, so every Controller Mode session moves the services. Paired Hosts
+# highest handle it has ever used, so every controller mode session moves the services. Paired hosts
 # keep their GATT cache and trust the Database Hash, which bluetoothd 5.83 stops updating once its
 # handles pass 1023 (one writev with an iovec per handle), so they would keep using handles that no
 # longer exist. The handles stay below 1024 and are spaced so the HID service can grow.
@@ -39,7 +39,7 @@ DEVICE_INFORMATION_HANDLE = 0x0240
 
 
 def build_application(on_host=None):
-    """HID-over-GATT (HOGP) gamepad for the Controller Identity, plus Battery and Device Information."""
+    """HID-over-GATT gamepad, plus Battery and Device Information services."""
     app = gatt.Application(APP_PATH, on_host)
 
     hid = app.add_service(gatt.uuid16("1812"), HID_HANDLE)
@@ -49,7 +49,7 @@ def build_application(on_host=None):
     # Hosts write suspend/exit-suspend here; there is nothing to do about it.
     hid.add_characteristic(gatt.uuid16("2a4c"), ["write-without-response"], b"\x00")
     hid.add_characteristic(gatt.uuid16("2a4e"), ["read", "write-without-response"], b"\x01")
-    # `notify` rather than `encrypt-notify`: the encrypted reads already make the Host bond first.
+    # `notify` rather than `encrypt-notify`: the encrypted reads already make the host bond first.
     gamepad = hid.add_characteristic(
         gatt.uuid16("2a4d"), ["encrypt-read", "notify"], identity.NEUTRAL_GAMEPAD_REPORT
     )
@@ -71,10 +71,9 @@ def build_application(on_host=None):
 
 
 async def restore_leftover_device_id():
-    """At backend start, undo a DeviceID override that a killed DeckPad process left in bluetoothd.
+    """Undo a DeviceID override that a killed DeckPad process left in bluetoothd.
 
-    Decky SIGKILLs plugins that are slow to stop (for instance during a full loader shutdown), and then
-    nothing restores bluetoothd's own DeviceID.
+    Decky SIGKILLs plugins that are slow to stop (for instance during a full loader shutdown).
     """
     if os.geteuid() != 0:
         return
@@ -120,13 +119,10 @@ class Peripheral:
         self._advertising_lock = asyncio.Lock()
         self._device_id_override = None
         self._gamepad_input = None
-        # Teardown steps for what has been registered so far, run newest first. Later
-        # registrations (advertisement, connected Hosts) therefore unwind before the application
-        # and the agent.
+        # Teardown steps, run newest first.
         self._undo = []
 
     async def start(self):
-        """Register DeckPad with BlueZ. On failure, undo whatever was registered and raise ControllerModeError."""
         try:
             await self._start()
         except BaseException:
@@ -205,7 +201,7 @@ class Peripheral:
             return None
 
     async def advertise(self, discoverable=True):
-        """Advertise the Deck: discoverable for Pairing Mode, or only connectable for Paired Hosts.
+        """Discoverable for pairing mode, or only connectable for paired hosts.
 
         Switching between the two re-registers the advertisement. Calls are serialised, so the last
         one wins even when callers race.
@@ -241,10 +237,8 @@ class Peripheral:
             log.warning("Could not stop advertising: %s", e)
 
     def send_gamepad_report(self, report):
-        """Notify the Connected Host of a new Gamepad Report. Returns False if no Host is listening.
-
-        Hosts that poll the report with ReadValue get the latest value either way.
-        """
+        """Returns False if no host is listening. Hosts that poll with ReadValue get the latest value
+        either way."""
         gamepad = self._gamepad_input
         if gamepad is None or self._bus is None:
             return False
@@ -270,9 +264,9 @@ class Peripheral:
         )
 
     async def stop(self):
-        """Undo every registration in reverse order, then close the bus connection. Safe to call repeatedly.
+        """Safe to call repeatedly.
 
-        Connected Hosts are disconnected first: if the application just disappears, the Host keeps a
+        Connected hosts are disconnected first: if the application just disappears, the host keeps a
         stale link and does not rebuild its controller until that link drops.
         """
         if self._bus is not None:
@@ -294,8 +288,8 @@ class Peripheral:
     def close(self):
         """Drop the bus connection immediately; BlueZ then releases anything still registered.
 
-        Connected Hosts are asked to disconnect first, without waiting for replies, so this stays
-        safe to call when the event loop can no longer run (plugin unload). Safe to call more than once.
+        Disconnect requests go out without waiting for replies, so this works when the event loop can
+        no longer run (plugin unload).
         """
         self._undo.clear()
         if self._bus is not None:
@@ -323,7 +317,6 @@ class Peripheral:
         return dict(self._devices.get(path, {}), path=path)
 
     def devices(self):
-        """Every remote device bluetoothd currently reports, as dicts with a `path` key."""
         return [self._device(path) for path in sorted(self._devices)]
 
     def _load_devices(self, objects):

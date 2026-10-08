@@ -1,8 +1,8 @@
-"""Latest-state-wins pacing of Gamepad Reports.
+"""Latest-state-wins pacing of gamepad reports.
 
 BlueZ queues GATT notifications without bound and the link carries only so many per second, so every
 report sent beyond that adds latency that never goes away. The pacer holds at most one pending report
-(the latest), sends only when it differs from what the Host last received, and sends at most once
+(the latest), sends only when it differs from what the host last received, and sends at most once
 per interval.
 """
 
@@ -14,7 +14,7 @@ log = logging.getLogger("deckpad.report_pacer")
 
 class ReportPacer:
     def __init__(self, send, interval):
-        """`send(report)` returns True if the report went to a Host, False if nobody was listening.
+        """`send(report)` returns True if the report went to a host, False if nobody was listening.
 
         `interval` is the minimum time between sends in seconds, or a function returning it, which is
         asked again before every send because the link's capacity can change during a session.
@@ -35,7 +35,7 @@ class ReportPacer:
         self._transmit(report)
 
     def send_now(self, report):
-        """Send `report` without waiting out the interval, replacing anything pending."""
+        """Skips the interval and replaces anything pending."""
         if self._closed:
             return
         if self._timer is not None:
@@ -59,7 +59,7 @@ class ReportPacer:
         except Exception:
             log.exception("Could not send a Gamepad Report")
             delivered = False
-        # Forgetting undelivered state makes the next offer go out even if it is unchanged, so a Host
+        # Forgetting undelivered state makes the next offer go out even if it is unchanged, so a host
         # that starts listening gets the current state rather than nothing.
         self._delivered = report if delivered else None
         self._timer = asyncio.get_running_loop().call_later(self._interval(), self._tick)

@@ -1,6 +1,6 @@
-"""Mapping from a Deck State Report (ADR-0003) to the Controller Identity's Gamepad Report (ADR-0002).
+"""Converts the Deck controller's input report into an Xbox Wireless Controller report.
 
-The Gamepad Report is the Xbox Wireless Controller 1914's BLE input report 0x01 without its report ID:
+The output is the Xbox Wireless Controller 1914's BLE input report 0x01 without its report ID:
 four u16 stick axes centred at 0x8000 with Y pointing down, two 10-bit triggers, a hat (0 neutral,
 1 = up, clockwise to 8 = up-left), and the button bytes. Rear buttons, trackpads and the triggers'
 digital clicks have no place in it and are dropped.
@@ -13,7 +13,7 @@ _DECK_STATE_REPORT_TYPE = 0x09
 
 _TRIGGER_MAX = 1023
 
-# (Deck State Report byte, bit) -> (Gamepad Report button byte index 0..2, mask)
+# (Deck report byte, bit) -> (Xbox report button byte index 0..2, mask)
 _BUTTONS = (
     ((8, 7), (0, 0x01)),  # A
     ((8, 5), (0, 0x02)),  # B
@@ -55,7 +55,7 @@ def is_quit_combo(report):
 
 
 def gamepad_report(deck_state):
-    """The 16-byte Gamepad Report for one Deck State Report, or None if `deck_state` is another kind of report."""
+    """The 16-byte Xbox report, or None if `deck_state` is another kind of report."""
     if len(deck_state) < DECK_STATE_REPORT_SIZE or deck_state[0] != 0x01 or deck_state[2] != _DECK_STATE_REPORT_TYPE:
         return None
     lt, rt, lx, ly, rx, ry = struct.unpack_from("<hhhhhh", deck_state, 44)
@@ -112,8 +112,8 @@ _HAT_DIRECTIONS = {
 
 
 def describe(report):
-    """A Gamepad Report as the Controller Screen draws it: the names of the buttons and D-pad directions
-    held, sticks from -1 to 1 with Y pointing down, and triggers from 0 to 1."""
+    """A report as the controller screen draws it: names of the buttons and D-pad directions held,
+    sticks from -1 to 1 with Y pointing down, and triggers from 0 to 1."""
     lx, ly, rx, ry, lt, rt, hat, *buttons = struct.unpack("<HHHHHHBBBB", report)
     held = [name for index, mask, name in _BUTTON_NAMES if buttons[index] & mask]
     held.extend("dpad_" + direction for direction in _HAT_DIRECTIONS.get(hat, ()))

@@ -1,9 +1,9 @@
-"""The Connected Host's connection interval, learned from the Bluetooth controller's HCI events (ADR-0008).
+"""Tracks the connected host's connection interval from the Bluetooth controller's HCI events.
 
-The Host picks the interval and may refuse DeckPad's request for a shorter one, and nothing in BlueZ's
+The host picks the interval and may refuse DeckPad's request for a shorter one, and nothing in BlueZ's
 D-Bus API reports it. On the tested Deck the link carried only about one notification per connection
-event at long intervals, and BlueZ queues anything beyond that without bound, so the pace follows
-the interval: one Gamepad Report per connection event, with a margin.
+event at long intervals, and BlueZ queues anything beyond that without bound, so reports are paced at
+one per connection event, with a margin.
 
 Reading HCI events needs a raw HCI socket with CAP_NET_RAW (DeckPad runs as root). The socket filter
 passes only Disconnect Complete and LE Meta events, so the CPU cost is a few small packets per second
@@ -18,8 +18,8 @@ from .hci_socket import HCI_CHANNEL_RAW, open_hci_socket
 
 log = logging.getLogger("deckpad.link_monitor")
 
-# Used while no Host's interval is known: one report per 60 ms is safe at 48.75 ms, the longest
-# interval a Host chose in testing.
+# Used while no host's interval is known: one report per 60 ms is safe at 48.75 ms, the longest
+# interval a host chose in testing.
 FALLBACK_REPORT_INTERVAL = 0.06
 MARGIN = 1.15
 
@@ -54,7 +54,7 @@ class LinkMonitor:
         self._index = index
         self._open_socket = open_socket
         self._sock = None
-        # Connection handle -> interval in seconds, for links where the Deck is the Peripheral.
+        # Connection handle -> interval in seconds, for links where the Deck is the peripheral.
         self._links = {}
 
     def start(self):
@@ -67,7 +67,7 @@ class LinkMonitor:
         asyncio.get_running_loop().add_reader(self._sock.fileno(), self._readable)
 
     def stop(self):
-        """Synchronous, so it is safe while Decky unloads the plugin."""
+        """Synchronous, so it can run during plugin unload."""
         if self._sock is not None:
             try:
                 asyncio.get_running_loop().remove_reader(self._sock.fileno())
@@ -78,11 +78,10 @@ class LinkMonitor:
         self._links.clear()
 
     def intervals(self):
-        """Connection intervals of the current Host links, in seconds."""
         return sorted(self._links.values())
 
     def report_interval(self):
-        """Seconds between Gamepad Reports that the slowest Connected Host's link can carry."""
+        """Seconds between reports that the slowest host link can carry."""
         if not self._links:
             return FALLBACK_REPORT_INTERVAL
         return max(self._links.values()) * MARGIN

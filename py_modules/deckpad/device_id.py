@@ -1,10 +1,10 @@
-"""Make bluetoothd's own Device Information Service report the Controller Identity, reversibly (ADR-0006).
+"""Make bluetoothd's own Device Information Service report the Xbox controller's IDs, reversibly.
 
 bluetoothd always publishes a DIS with its DeviceID (BlueZ's 1D6B:0246) at lower GATT handles than
-DeckPad's, and Hosts such as Linux use the first DIS they find. bluetoothd builds that PnP ID value
+DeckPad's, and hosts such as Linux use the first DIS they find. bluetoothd builds that PnP ID value
 from its `btd_opts.did_*` globals on every read, and nothing else reads them after startup (the SDP
 record, EIR, and Modalias are built once). So, as root, DeckPad rewrites those four u16s in the
-running bluetoothd's data segment while Controller Mode is on and writes BlueZ's values back when it
+running bluetoothd's data segment while controller mode is on and writes BlueZ's values back when it
 stops. No file is changed and bluetoothd is not restarted.
 
 Every step refuses rather than guesses: the original values must match the adapter's Modalias, occur

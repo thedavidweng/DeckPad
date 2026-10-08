@@ -54,8 +54,7 @@ export const forgetHost = callable<[address: string], ControllerModeState>("forg
 export const allowReconnect = callable<[], ControllerModeState>("allow_reconnect");
 export const setQuitCombo = callable<[enabled: boolean], ControllerModeState>("set_quit_combo");
 
-// One Gamepad Report going to the Host, as the backend describes it for drawing (ADR-0013). Sticks run
-// from -1 to 1 with Y pointing down; triggers from 0 to 1.
+// Sticks run from -1 to 1 with Y pointing down; triggers from 0 to 1.
 export interface GamepadPreview {
   buttons: string[];
   left_stick: [number, number];
@@ -116,7 +115,7 @@ export function hostNames(hosts: PairedHost[]): Map<string, string> {
   return names;
 }
 
-// The backend keeps one Connected Host at a time.
+// The backend keeps only one host connected at a time.
 export function connectedHostName(state: ControllerModeState): string | null {
   const host = state.hosts.find((h) => h.connected);
   return host ? (hostNames(state.hosts).get(host.address) ?? null) : null;

@@ -1,8 +1,8 @@
-"""Deck Controls in, Gamepad Reports out, for as long as Controller Mode is on.
+"""Reads the Deck's controls and turns them into gamepad reports while controller mode is on.
 
-DeckPad reads the built-in controller's raw HID interface read-only, next to Steam (ADR-0003). The
-node is found by VID/PID plus sysfs topology on every (re)open, because hidraw numbering is not
-stable and the interface disappears and comes back when the controller resets.
+The built-in controller's raw HID interface is opened read-only, next to Steam. The node is looked up
+by VID/PID and sysfs topology on every (re)open, because hidraw numbering is not stable and the
+interface disappears and comes back when the controller resets.
 """
 
 import asyncio
@@ -43,13 +43,9 @@ def find_controller_node():
 
 class DeckControls:
     def __init__(self, send, report_interval, on_change=None, on_quit_combo=None, quit_combo_enabled=lambda: True):
-        """`send(report)` delivers one Gamepad Report and returns whether a Host received it.
-
-        `report_interval()` is the time between reports the link can carry right now (ADR-0008).
-        `on_change()` is called when the controller becomes readable or stops being readable.
-        `on_quit_combo()`, if given, is called once when the Quit Combo is pressed while
-        `quit_combo_enabled()` (ADR-0012); the Host then gets a report with nothing held instead of
-        the combo.
+        """`send(report)` returns whether a host received the report. `report_interval()` is the time
+        between reports the link can carry right now. `on_quit_combo()` is called once per press of
+        the quit combo while `quit_combo_enabled()`; the host then gets a report with nothing held.
         """
         self._pacer = ReportPacer(send, report_interval)
         self._on_change = on_change
@@ -66,8 +62,8 @@ class DeckControls:
 
     @property
     def available(self):
-        """Whether Deck Controls are being read. A controller that just went away counts as available
-        until reopening it fails, because it usually comes straight back after a reset."""
+        """A controller that just went away counts as available until reopening it fails, because it
+        usually comes straight back after a reset."""
         return bool(self._available)
 
     def start(self):
@@ -75,7 +71,7 @@ class DeckControls:
         self._open()
 
     def stop(self):
-        """Stop reading at once. Synchronous, so it is safe while Decky unloads the plugin."""
+        """Synchronous, so it can run during plugin unload."""
         self._running = False
         if self._retry is not None:
             self._retry.cancel()
@@ -151,7 +147,7 @@ class DeckControls:
         if self._on_quit_combo is not None and is_quit_combo(latest) and self._quit_combo_enabled():
             if not self._quit_combo_held:
                 self._quit_combo_held = True
-                # Like Moonlight: release everything on the Host, so no button stays stuck there.
+                # Like Moonlight: release everything on the host, so no button stays stuck there.
                 self._pacer.send_now(AT_REST)
                 log.info("Quit Combo pressed")
                 try:

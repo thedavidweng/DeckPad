@@ -1,9 +1,8 @@
-"""Pairing Mode: the time-limited sub-state of Controller Mode in which a new Host can find the Deck and pair.
+"""The three-minute window in which a new host can find the Deck and pair.
 
-Status moves closed -> discoverable -> pairing (a Host connected) -> paired or failed. An outcome
-(paired/failed) stays visible until Pairing Mode is opened again or Controller Mode stops. While the
-status is discoverable or pairing, DeckPad's agent accepts Just Works pairing; at any other time it
-refuses (ADR-0005).
+Status moves closed -> discoverable -> pairing (a host connected) -> paired or failed. The outcome
+stays visible until pairing mode opens again or controller mode stops. DeckPad's agent accepts
+pairing only while the status is discoverable or pairing.
 """
 
 import asyncio
@@ -30,10 +29,9 @@ class PairingMode:
         self._on_paired = on_paired
         self._peripheral = None
         self._status = CLOSED
-        # The Host this pairing is about, and its Device1 path.
         self._host = None
         self._host_path = None
-        # Once a Host connected to pair, Device1 changes of other devices are ignored.
+        # Once a host connected to pair, Device1 changes of other devices are ignored.
         self._candidate = None
         self._error = None
         self._deadline = None
@@ -65,12 +63,10 @@ class PairingMode:
         return self._status in (DISCOVERABLE, PAIRING)
 
     def attach(self, peripheral):
-        """Controller Mode is on: Pairing Mode can now be opened on this Peripheral."""
         self._peripheral = peripheral
 
     def detach(self):
-        """Controller Mode is stopping: forget everything without waiting (the Peripheral tears down
-        its own advertisement)."""
+        """Does not wait; the peripheral tears down its own advertisement."""
         self._cancel_timer()
         self._tasks.cancel_all()
         self._peripheral = None
@@ -101,7 +97,7 @@ class PairingMode:
         await self._withdraw()
         await self._publish()
 
-    # Called synchronously by the Peripheral from the agent and the Device1 watch.
+    # Called synchronously by the peripheral from the agent and the Device1 watch.
 
     def pairing_requested(self, device):
         if not self.accepting:
@@ -113,14 +109,14 @@ class PairingMode:
 
     def device_changed(self, path, before, after):
         if self._host is not None and self._host_path == path and Host.from_device(after) != self._host:
-            # bluetoothd learns a new Host's name only after the link is up.
+            # bluetoothd learns a new host's name only after the link is up.
             self._host = Host.from_device(after)
             self._tasks.spawn(self._publish())
         if not self.accepting:
             return
         if self._status == DISCOVERABLE and after.get("Connected") and not before.get("Connected"):
             if after.get("Paired"):
-                # A Paired Host reconnecting is not a new pairing.
+                # A paired host reconnecting is not a new pairing.
                 return
             self._host_connected(after)
         if self._candidate is not None and path != self._candidate:
@@ -139,7 +135,7 @@ class PairingMode:
         self._candidate = device["path"]
         self._set_host(device)
         self._status = PAIRING
-        # Advertise only while no Host is connected: a connectable advertisement during a connection
+        # Advertise only while no host is connected: a connectable advertisement during a connection
         # can make the controller drop the link.
         self._tasks.spawn(self._withdraw())
         self._tasks.spawn(self._publish())

@@ -1,8 +1,7 @@
-"""The Hosts that paired through DeckPad, remembered across sessions and plugin reloads.
+"""The hosts that paired through DeckPad.
 
 bluetoothd's bond list also holds the user's headphones, keyboards and other peripherals, so DeckPad
-keeps its own record of which bonds are Paired Hosts. Only these are ever listed, disconnected or
-forgotten by DeckPad.
+keeps its own list of the bonds it made. It never lists, disconnects or removes any other device.
 """
 
 import dataclasses
@@ -21,7 +20,6 @@ class Host:
 
     @classmethod
     def from_device(cls, device):
-        """The Host behind a Device1, named the way a person would recognise it."""
         return cls(device.get("Address"), display_name(device))
 
     def to_dict(self):
@@ -56,7 +54,6 @@ class PairedHosts:
         return list(self._hosts.values())
 
     def name(self, address):
-        """The recorded name of a Paired Host, or None."""
         host = self._hosts.get(address)
         return host.name if host else None
 
@@ -65,7 +62,7 @@ class PairedHosts:
         self._save()
 
     def rename(self, address, name):
-        """Record a Paired Host's new name. Returns whether anything changed."""
+        """Returns whether anything changed."""
         host = self._hosts.get(address)
         if host is None or not name or host.name == name:
             return False
@@ -78,7 +75,6 @@ class PairedHosts:
             self._save()
 
     def erase(self):
-        """Forget every Paired Host and delete the record's file."""
         self._hosts = {}
         if self._path:
             for path in (self._path, self._path + ".tmp"):

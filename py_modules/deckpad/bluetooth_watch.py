@@ -1,4 +1,4 @@
-"""Notices when Bluetooth goes away underneath a running Controller Mode session.
+"""Notices when Bluetooth goes away while controller mode is on.
 
 bluetoothd drops every registration (application, advertisement, agent) when it exits or when the
 adapter disappears, and a powered-off adapter carries no links, so the session's state no longer
@@ -29,7 +29,7 @@ class BluetoothWatch:
         self._fired = False
 
     async def start(self):
-        """Start watching the adapter the Peripheral uses. Raises ControllerModeError if it is already gone."""
+        """Raises ControllerModeError if the adapter is already gone."""
         try:
             self._bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
         except Exception as e:

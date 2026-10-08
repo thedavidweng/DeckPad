@@ -13,6 +13,6 @@ class Tasks:
         task.add_done_callback(self._tasks.discard)
 
     def cancel_all(self):
-        """Synchronous, so it also serves plugin unload."""
+        """Synchronous, so it can run during plugin unload."""
         for task in list(self._tasks):
             task.cancel()

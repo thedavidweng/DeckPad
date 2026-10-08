@@ -1,18 +1,16 @@
-"""Connection management for Paired Hosts while Controller Mode is on: which one is connected, letting a
-returning Host reconnect, Disconnect, and Forget.
+"""Paired hosts while controller mode is on: reconnecting, Disconnect, and Forget.
 
-`connection` moves between idle (nothing to wait for), waiting (no Paired Host connected; the Deck sends
-a connectable but non-discoverable advertisement so a Paired Host can reconnect by itself), connected,
-and paused. Disconnect pauses reconnecting until the user allows it again or the next Controller Mode
-session: otherwise a Host that auto-connects would come straight back.
-BlueZ offers no directed advertising, so any Paired Host in range may be the one that reconnects.
-Advertising stops while a Host is connected, because a connectable advertisement during a connection
-can make the controller drop the link. There is one Connected Host at a time: a Host that connects or
-pairs while another is connected (only possible through Pairing Mode's advertisement) takes over, and
-the previous one is disconnected.
+While no paired host is connected, the Deck sends a connectable but non-discoverable advertisement so
+one can reconnect by itself. BlueZ offers no directed advertising, so any paired host in range may be
+the one that does. Disconnect pauses this until the user allows it again or controller mode restarts;
+otherwise a host that auto-connects would come straight back.
 
-Only Paired Hosts (the `PairedHosts` record) are ever listed, disconnected or removed; the Deck's other
-Bluetooth devices are left alone.
+Advertising stops while a host is connected, because a connectable advertisement during a connection
+can make the controller drop the link. Only one host is connected at a time: one that connects or pairs
+while another is connected (only possible through pairing mode's advertisement) takes over.
+
+Only devices in `PairedHosts` are listed, disconnected or removed; the Deck's other Bluetooth devices
+are left alone.
 """
 
 import asyncio
@@ -36,7 +34,7 @@ REMOVAL_CHECK_TIMEOUT = 3.0
 
 
 class Connections:
-    """`pairing` is the Pairing Mode, which owns the advertisement while it accepts new Hosts."""
+    """`pairing` owns the advertisement while pairing mode is open."""
 
     def __init__(self, paired_hosts, pairing, on_change):
         self._paired_hosts = paired_hosts
@@ -49,7 +47,7 @@ class Connections:
 
     @property
     def error(self):
-        """Why Paired Hosts cannot reconnect right now, or None."""
+        """Why paired hosts cannot reconnect right now, or None."""
         return self._error
 
     def snapshot(self):
@@ -57,7 +55,6 @@ class Connections:
 
     @property
     def status(self):
-        """One of CONNECTED, WAITING, PAUSED, IDLE."""
         hosts = self._hosts()
         if any(h["connected"] for h in hosts):
             return CONNECTED
@@ -68,7 +65,7 @@ class Connections:
         return IDLE
 
     def _hosts(self):
-        """Paired Hosts for the panel, the Connected Host first."""
+        """Connected host first."""
         devices = self._devices_by_address()
         hosts = [
             dict(host.to_dict(), connected=bool(devices.get(host.address, {}).get("Connected")))
@@ -78,7 +75,7 @@ class Connections:
         return hosts
 
     async def reconcile(self):
-        """Advertise for Paired Hosts exactly while one could reconnect and Pairing Mode is not advertising."""
+        """Advertise for paired hosts exactly while one could reconnect and pairing mode is closed."""
         peripheral = self._peripheral
         if peripheral is None or self._pairing.accepting:
             return
@@ -95,7 +92,7 @@ class Connections:
             self._error = None
 
     async def disconnect(self, address):
-        """Drop a Connected Host's link, keeping its pairing, and pause reconnecting."""
+        """Drop the link, keep the pairing, and pause reconnecting."""
         device = self._devices_by_address().get(address)
         if self._peripheral is None or address not in self._paired_hosts or not device or not device.get("Connected"):
             return
@@ -105,7 +102,6 @@ class Connections:
         await self.reconcile()
 
     async def forget(self, address):
-        """Remove a Paired Host's pairing on the Deck (disconnecting it if needed) and drop its record."""
         if self._peripheral is None or address not in self._paired_hosts:
             return
         device = self._devices_by_address().get(address)
@@ -116,7 +112,7 @@ class Connections:
         await self.reconcile()
 
     async def forget_offline(self, address):
-        """Forget while Controller Mode is off, over a connection that lasts only for this call."""
+        """Forget while controller mode is off, over a bus connection that lasts only for this call."""
         if address not in self._paired_hosts:
             return
         log.info("Forgetting %s", address)
@@ -126,11 +122,7 @@ class Connections:
         self._paired_hosts.remove(address)
 
     async def forget_all_offline(self):
-        """Remove every Paired Host's pairing on the Deck while Controller Mode is off (for uninstall).
-
-        The Deck's other Bluetooth devices are left alone. A Host whose pairing could not be removed
-        stays in the record.
-        """
+        """For uninstall. A host whose pairing could not be removed stays in the record."""
         if not self._paired_hosts.all():
             return
         async with bluez.temporary_connection() as bus:
@@ -145,11 +137,10 @@ class Connections:
                     self._paired_hosts.remove(host.address)
 
     async def drop_stale_links(self):
-        """While Controller Mode is off, disconnect Paired Hosts that are still connected.
+        """Disconnect paired hosts left connected by a killed previous backend.
 
-        That only happens when a previous backend was killed (Decky SIGKILLs plugins that are slow to
-        stop) before it could disconnect them. The Host then keeps a link to a Deck that no longer
-        serves its controller, and does not rebuild the controller until that link drops.
+        Such a host keeps a link to a Deck that no longer serves its controller, and does not rebuild
+        the controller until that link drops.
         """
         if not self._paired_hosts.all():
             return
@@ -165,7 +156,7 @@ class Connections:
             self._tasks.spawn(self._confirm_removed(device["Address"]))
 
     async def _confirm_removed(self, address):
-        """Forget a Paired Host whose pairing was removed elsewhere (Steam's Bluetooth settings)."""
+        """Forget a host whose pairing was removed elsewhere, such as Steam's Bluetooth settings."""
         await asyncio.sleep(REMOVAL_CHECK_DELAY)
         if self._peripheral is None:
             # The session ended; the next one checks the record against what bluetoothd reports.
@@ -199,7 +190,7 @@ class Connections:
             self._refresh_name(device)
 
     def detach(self):
-        """The session is ending: drop its background work without waiting, so it also serves unload."""
+        """Does not wait, so it can run during plugin unload."""
         self._tasks.cancel_all()
         self._peripheral = None
         self._error = None
@@ -216,7 +207,7 @@ class Connections:
             self._tasks.spawn(self._on_change())
 
     async def _take_over(self, device):
-        """One Connected Host at a time: the Host that connected (or just paired) last gets the controls."""
+        """The host that connected (or paired) last gets the controls; the others are disconnected."""
         peripheral = self._peripheral
         others = [d for d in self._connected_hosts() if d["path"] != device["path"]]
         for other in others:
@@ -235,7 +226,7 @@ class Connections:
         return [d for d in self._devices_by_address().values() if d.get("Connected") and d.get("Address") in self._paired_hosts]
 
     def _refresh_name(self, device):
-        """Paired Hosts are often recorded before bluetoothd learns their name; keep the record current."""
+        """Hosts are often recorded before bluetoothd learns their name."""
         return self._paired_hosts.rename(device.get("Address"), display_name(device))
 
     def _devices_by_address(self):
@@ -249,7 +240,6 @@ def _connected_and_paired(device):
 
 
 async def _devices(bus, address):
-    """(path, properties) of bluetoothd's device objects with this address."""
     found = []
     for path, interfaces in (await bluez.managed_objects(bus)).items():
         if bluez.DEVICE in interfaces:
@@ -265,7 +255,7 @@ async def _remove_pairing(bus, adapter_path, address):
 
 
 async def _unpaired(address):
-    """Whether bluetoothd is running with its adapter and no longer holds a pairing with the device.
+    """Whether bluetoothd is up and no longer holds a pairing with the device.
 
     Steam scans all the time, so a removed device can already be back as an unpaired object.
     """

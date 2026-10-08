@@ -1,7 +1,7 @@
 """BlueZ GATT server objects (org.bluez.GattService1/Characteristic1/Descriptor1).
 
 Never set a `name` attribute on these classes: ServiceInterface uses it as the D-Bus interface name,
-and BlueZ then rejects the application with "No valid service object found" (ADR-0004).
+and BlueZ then rejects the application with "No valid service object found".
 """
 
 from dbus_fast import Variant
@@ -60,7 +60,7 @@ class Characteristic(ServiceInterface):
         self._flags = list(flags)
         self.value = bytes(value)
         # BlueZ calls StartNotify/StopNotify only on CCCD writes and app (re-)registration, never on
-        # a Paired Host's disconnect or plain reconnect, so only those two calls may change this flag.
+        # a paired host's disconnect or plain reconnect, so only those two calls may change this flag.
         self.notifying = False
         self.descriptors = []
 
@@ -148,7 +148,7 @@ class Application:
         self._on_host = on_host
 
     def host_seen(self, device_path):
-        """BlueZ names the remote device in every read/write, which is how DeckPad knows its Hosts."""
+        """BlueZ names the remote device in every read/write, which is how DeckPad knows its hosts."""
         if device_path and self._on_host is not None:
             self._on_host(device_path)
 
