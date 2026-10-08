@@ -64,10 +64,38 @@ async def call(bus, path, interface, member, signature="", body=()):
     return reply.body
 
 
+async def _bus_daemon_call(bus, member, arg):
+    reply = await bus.call(
+        Message(
+            destination="org.freedesktop.DBus",
+            path="/org/freedesktop/DBus",
+            interface="org.freedesktop.DBus",
+            member=member,
+            signature="s",
+            body=[arg],
+        )
+    )
+    if reply.message_type == MessageType.ERROR:
+        raise BluezError(reply.error_name, reply.body[0] if reply.body else "")
+    return reply.body
+
+
+async def add_match(bus, rule):
+    await _bus_daemon_call(bus, "AddMatch", rule)
+
+
+def adapter_index(adapter_path):
+    """The kernel's index (the N in hciN) for an adapter object path, or None if it has none."""
+    name = (adapter_path or "").rsplit("/", 1)[-1]
+    if name.startswith("hci") and name[3:].isdigit():
+        return int(name[3:])
+    return None
+
+
 async def find_adapter(bus):
     """Return (path, properties) of the first Bluetooth adapter BlueZ knows about."""
     try:
-        (objects,) = await call(bus, "/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects")
+        objects = await managed_objects(bus)
     except BluezError as e:
         if e.service_unavailable:
             raise errors.bluetooth_unavailable(str(e)) from e
@@ -133,35 +161,13 @@ async def watch_devices(bus):
         "type='signal',sender='%s',interface='org.freedesktop.DBus.Properties',"
         "member='PropertiesChanged',arg0='%s'" % (SERVICE, DEVICE),
     ):
-        reply = await bus.call(
-            Message(
-                destination="org.freedesktop.DBus",
-                path="/org/freedesktop/DBus",
-                interface="org.freedesktop.DBus",
-                member="AddMatch",
-                signature="s",
-                body=[rule],
-            )
-        )
-        if reply.message_type == MessageType.ERROR:
-            raise BluezError(reply.error_name, reply.body[0] if reply.body else "")
+        await add_match(bus, rule)
 
 
 async def service_pid(bus):
     """PID of the process that owns org.bluez (bluetoothd)."""
-    reply = await bus.call(
-        Message(
-            destination="org.freedesktop.DBus",
-            path="/org/freedesktop/DBus",
-            interface="org.freedesktop.DBus",
-            member="GetConnectionUnixProcessID",
-            signature="s",
-            body=[SERVICE],
-        )
-    )
-    if reply.message_type == MessageType.ERROR:
-        raise BluezError(reply.error_name, reply.body[0] if reply.body else "")
-    return reply.body[0]
+    (pid,) = await _bus_daemon_call(bus, "GetConnectionUnixProcessID", SERVICE)
+    return pid
 
 
 async def managed_objects(bus):

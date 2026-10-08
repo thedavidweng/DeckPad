@@ -8,7 +8,7 @@ session's.
 
 import logging
 
-from dbus_fast import BusType, Message, MessageType
+from dbus_fast import BusType, MessageType
 from dbus_fast.aio import MessageBus
 
 from . import bluez, errors
@@ -43,7 +43,7 @@ class BluetoothWatch:
                 "type='signal',sender='%s',interface='org.freedesktop.DBus.Properties',"
                 "member='PropertiesChanged',arg0='%s'" % (bluez.SERVICE, bluez.ADAPTER),
             ):
-                await _add_match(self._bus, rule)
+                await bluez.add_match(self._bus, rule)
             # Read the state only after subscribing, so a change in between is not missed.
             self._adapter_path, adapter = await bluez.find_adapter(self._bus)
         except BaseException:
@@ -84,18 +84,3 @@ class BluetoothWatch:
             self._on_lost(reason)
         except Exception:
             log.exception("Bluetooth loss handler failed")
-
-
-async def _add_match(bus, rule):
-    reply = await bus.call(
-        Message(
-            destination="org.freedesktop.DBus",
-            path="/org/freedesktop/DBus",
-            interface="org.freedesktop.DBus",
-            member="AddMatch",
-            signature="s",
-            body=[rule],
-        )
-    )
-    if reply.message_type == MessageType.ERROR:
-        raise bluez.BluezError(reply.error_name, reply.body[0] if reply.body else "")

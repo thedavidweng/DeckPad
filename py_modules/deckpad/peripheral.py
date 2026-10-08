@@ -192,13 +192,8 @@ class Peripheral:
 
     @property
     def adapter_index(self):
-        """The kernel's index for the adapter (hciN), or None before start."""
-        if not self._adapter_path or not self._adapter_path.rsplit("/", 1)[-1].startswith("hci"):
-            return None
-        try:
-            return int(self._adapter_path.rsplit("/hci", 1)[-1])
-        except ValueError:
-            return None
+        """None before start."""
+        return bluez.adapter_index(self._adapter_path)
 
     async def advertise(self, discoverable=True):
         """Discoverable for pairing mode, or only connectable for paired hosts.

@@ -141,20 +141,13 @@ async def _bluetooth(root):
                 result["device_id"] = device_id.current(result["pid"], modalias, identity.DEVICE_ID)
             except Exception as e:
                 log.info("Could not read bluetoothd's DeviceID: %r", e)
-            index = _index(result["adapter_path"])
+            index = bluez.adapter_index(result["adapter_path"])
             if index is not None:
                 try:
                     result["interval"] = connection_interval.current(index)
                 except Exception as e:
                     log.info("Could not read the adapter's connection interval: %r", e)
         return result
-
-
-def _index(adapter_path):
-    name = adapter_path.rsplit("/", 1)[-1]
-    if name.startswith("hci") and name[3:].isdigit():
-        return int(name[3:])
-    return None
 
 
 def _adapter_summary(bt):
