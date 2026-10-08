@@ -134,7 +134,7 @@ class Connections:
         self._paired_hosts.remove(address)
 
     async def forget_all_offline(self):
-        """For uninstall. A host whose pairing could not be removed stays in the record."""
+        """For uninstall. The caller deletes the record; this worker never writes shared files."""
         if not self._paired_hosts.all():
             return
         async with bluez.temporary_connection() as bus:
@@ -145,8 +145,6 @@ class Connections:
                     await _remove_pairing(bus, adapter_path, host.address)
                 except bluez.BluezError as e:
                     log.warning("Could not remove the pairing with %s: %s", host.address, e)
-                else:
-                    self._paired_hosts.remove(host.address)
 
     async def drop_stale_links(self):
         """Disconnect paired hosts left connected by a killed previous backend.

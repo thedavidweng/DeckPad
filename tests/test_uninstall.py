@@ -5,6 +5,7 @@ directory afterwards. Observed from BlueZ's side and in the plugin's directories
 import asyncio
 import os
 import unittest
+from unittest.mock import patch
 
 from tests.support.fake_bluez import HOST_ADDRESS
 from tests.support.plugin_case import PluginTestCase
@@ -75,6 +76,13 @@ class UninstallingDeckPad(ConnectionsCase):
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_LOG_DIR, "diagnostics.txt")))
+
+    async def test_uninstall_does_not_rewrite_the_host_file_it_is_deleting(self):
+        with patch("deckpad.hosts.storage.save") as save:
+            await self.uninstall()
+        save.assert_not_called()
+        self.assertNotIn(self.host, self.bluez.devices)
+        self.assertNotIn(self.other, self.bluez.devices)
 
     async def test_it_keeps_an_interval_record_when_restoration_is_not_permitted(self):
         interval_state = os.path.join(self.decky.DECKY_PLUGIN_RUNTIME_DIR, "connection_interval.json")
