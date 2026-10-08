@@ -100,6 +100,9 @@ class _NoListener:
     def device_removed(self, path, device):
         pass
 
+    def report_target_changed(self):
+        pass
+
 
 class Peripheral:
     """`listener` decides pairing and service authorization requests, and is told about Device1 changes."""
@@ -149,7 +152,7 @@ class Peripheral:
             await bluez.watch_devices(bus)
             self._load_devices(await bluez.managed_objects(bus))
 
-            app = build_application(self._hosts.add)
+            app = build_application(self._host_seen)
             agent = PairingAgent(self._allow_pairing, self._allow_service, [s.UUID for s in app.services])
             bus.export(AGENT_PATH, agent)
             await bluez.register_agent(bus, AGENT_PATH, CAPABILITY)
@@ -158,6 +161,7 @@ class Peripheral:
 
             app.export(bus)
             self._gamepad_input = app.gamepad_input
+            self._gamepad_input.on_notify_changed = self._listener.report_target_changed
             adapter_path = self._adapter_path
             await bluez.register_application(bus, adapter_path, APP_PATH)
             self._undo.append(
@@ -299,8 +303,14 @@ class Peripheral:
         device = self._device(path)
         allowed = self._listener.pairing_requested(device)
         if allowed:
-            self._hosts.add(path)
+            self._host_seen(path)
         return allowed
+
+    def _host_seen(self, path):
+        if path not in self._hosts:
+            self._hosts.add(path)
+            if self._devices.get(path, {}).get("Connected"):
+                self._listener.report_target_changed()
 
     def _allow_service(self, path):
         return self._listener.service_requested(self._device(path))
@@ -324,8 +334,11 @@ class Peripheral:
         elif msg.member == "InterfacesAdded" and bluez.DEVICE in msg.body[1]:
             self._update_device(msg.body[0], bluez.device_properties(msg.body[1][bluez.DEVICE]))
         elif msg.member == "InterfacesRemoved" and bluez.DEVICE in msg.body[1]:
+            targets = self._connected_hosts()
             device = self._device(msg.body[0])
             self._devices.pop(msg.body[0], None)
+            if targets != self._connected_hosts():
+                self._listener.report_target_changed()
             try:
                 self._listener.device_removed(msg.body[0], device)
             except Exception:
@@ -333,6 +346,7 @@ class Peripheral:
         return False
 
     def _update_device(self, path, changes):
+        targets = self._connected_hosts()
         before = self._device(path)
         self._devices[path] = dict(self._devices.get(path, {}), **_pick(changes))
         after = self._device(path)
@@ -340,6 +354,8 @@ class Peripheral:
             self._listener.device_changed(path, before, after)
         except Exception:
             log.exception("Device change handler failed for %s", path)
+        if targets != self._connected_hosts():
+            self._listener.report_target_changed()
 
 
 def _pick(props):

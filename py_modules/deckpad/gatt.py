@@ -77,6 +77,7 @@ class Characteristic(ServiceInterface):
         # BlueZ calls StartNotify/StopNotify only on CCCD writes and app (re-)registration, never on
         # a paired host's disconnect or plain reconnect, so only those two calls may change this flag.
         self.notifying = False
+        self.on_notify_changed = None
         self.descriptors = []
 
     def add_descriptor(self, uuid, flags, value):
@@ -123,15 +124,19 @@ class Characteristic(ServiceInterface):
 
     @method()
     def StartNotify(self):
-        if "notify" not in self._flags:
-            raise DBusError("org.bluez.Error.NotSupported", "Value does not support notifications")
-        self.notifying = True
+        self._set_notifying(True)
 
     @method()
     def StopNotify(self):
+        self._set_notifying(False)
+
+    def _set_notifying(self, enabled):
         if "notify" not in self._flags:
             raise DBusError("org.bluez.Error.NotSupported", "Value does not support notifications")
-        self.notifying = False
+        if self.notifying != enabled:
+            self.notifying = enabled
+            if self.on_notify_changed is not None:
+                self.on_notify_changed()
 
 
 class Service(ServiceInterface):

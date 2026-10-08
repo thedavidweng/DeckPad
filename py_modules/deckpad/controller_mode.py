@@ -290,7 +290,8 @@ class ControllerMode:
     async def _open_session(self):
         """Returns False if unload began meanwhile. On failure, releases everything and raises."""
         peripheral = Peripheral(
-            listener=_Listeners(self._pairing, self._connections, self._paired_hosts), paired_hosts=self._paired_hosts
+            listener=_Listeners(self._pairing, self._connections, self._paired_hosts, self._reset_reports),
+            paired_hosts=self._paired_hosts,
         )
         watch = BluetoothWatch(lambda reason: self._session_lost(watch, reason))
         self._peripheral = peripheral
@@ -435,6 +436,10 @@ class ControllerMode:
         if self._status == ON:
             self._tasks.spawn(self._changed())
 
+    def _reset_reports(self):
+        if self._deck_controls is not None:
+            self._deck_controls.reset_reports()
+
     def _stop_deck_controls(self):
         if self._deck_controls is not None:
             self._deck_controls.stop()
@@ -471,10 +476,11 @@ async def _ignore(_):
 class _Listeners:
     """Only the pairing candidate and BlueZ-paired DeckPad Hosts may use DeckPad services."""
 
-    def __init__(self, pairing, connections, paired_hosts):
+    def __init__(self, pairing, connections, paired_hosts, report_target_changed):
         self._pairing = pairing
         self._connections = connections
         self._paired_hosts = paired_hosts
+        self.report_target_changed = report_target_changed
 
     def pairing_requested(self, device):
         return self._pairing.pairing_requested(device)

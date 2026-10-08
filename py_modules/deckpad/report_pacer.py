@@ -46,6 +46,11 @@ class ReportPacer:
 
     def close(self):
         self._closed = True
+        self.reset()
+
+    def reset(self):
+        """A connection or subscription change invalidates the previous recipient's state."""
+        self._delivered = None
         self._pending = None
         if self._timer is not None:
             self._timer.cancel()

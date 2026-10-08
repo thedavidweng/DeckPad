@@ -82,6 +82,9 @@ class DeckControls:
         self._quit_combo_held = False
         self._pacer.close()
 
+    def reset_reports(self):
+        self._pacer.reset()
+
     def _open(self):
         self._retry = None
         if not self._running:
@@ -166,5 +169,6 @@ class DeckControls:
         log.warning("Lost the Deck's controller (%s); reopening", reason)
         self._close()
         self._quit_combo_held = False
+        self._pacer.reset()
         self._pacer.send_now(AT_REST)
         self._retry = asyncio.get_running_loop().call_later(REOPEN_DELAY, self._open)

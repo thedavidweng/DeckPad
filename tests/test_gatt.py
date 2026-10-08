@@ -66,9 +66,12 @@ class GattRequests(unittest.TestCase):
 
     def test_subscription_changes_are_idempotent(self):
         char = self.app.gamepad_input
+        changes = []
+        char.on_notify_changed = lambda: changes.append(char.notifying)
         invoke(char, "StartNotify")
         invoke(char, "StartNotify")
         self.assertTrue(char.notifying)
         invoke(char, "StopNotify")
         invoke(char, "StopNotify")
         self.assertFalse(char.notifying)
+        self.assertEqual(changes, [True, False])
