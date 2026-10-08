@@ -9,7 +9,7 @@ Every code change was committed independently after relevant tests passed. No co
 
 | Check | Result |
 |---|---|
-| Full Python behavior suite, Linux Python 3.11.7 container | 325 tests passed |
+| Full Python behavior suite, Linux Python 3.11.7 container | 334 tests passed, including adapter-identity regressions |
 | Full Python behavior suite, Linux Python 3.12.3 (`orca`) | 334 tests passed, including Disconnect write-result and adapter-identity regressions |
 | Frontend behavior tests, local Node 24.21.0 | 14 tests passed |
 | TypeScript 7 typecheck and official Rollup preset build | Passed with frozen dependency installation |
@@ -124,17 +124,19 @@ input/reconnect and unrelated peripheral coexistence still require their own acc
 
 ### Current packaged artifact
 
-Rebuilt clean source revision `a623a4e` with official Decky CLI 0.0.7 and its builder container.
-`out/DeckPad.zip` now includes the Disconnect write-result fix. The 81-file verifier passed, including
+Rebuilt clean source revision `e6064bb` with official Decky CLI 0.0.7 and its builder container.
+`out/DeckPad.zip` includes the Disconnect write-result and adapter-identity recovery fixes. The 81-file verifier passed, including
 byte-for-byte backend and notice comparison, API v1/root metadata, archive integrity and exclusion of
 binary extensions and bytecode. SHA-256:
-`723a1db8fbfc2dde9cf26b31d8451c34040642f1c81fde6971d4fb1b17122e77`.
+`e869b222a5af9f89f773e6122f600ce91a03116154e1b300a78c07c08fe2e3e2`.
 
 Deployed this complete archive to the existing LCD installation and verified every deployed archive
 file. Official individual-plugin reload succeeded; diagnostics from the new embedded Python 3.11.7
-process report OFF, no error, BlueZ's own identity and interval 24–40. The Host record and Quit Combo
-setting survive. TypeScript typecheck and all 14 frontend tests passed again. The temporary build VM
-was removed and the original Docker context restored. No push or Store submission was performed.
+process report OFF, no error, BlueZ's own identity and interval 24–40. Quit Combo remains enabled;
+the Host list is empty following the authorized fresh-pairing cleanup. The official builder rebuilt
+the unchanged frontend successfully; its earlier typecheck and 14 behavior tests remain the frontend
+evidence. The revised full Python 3.11.7 suite passes 334 tests in the Linux container. The temporary
+build VM was removed and the original Docker context restored. No push or Store submission was performed.
 
 ### Fresh Mac pairing attempt
 
@@ -193,8 +195,8 @@ index-only journal at `/home/deck/DeckPad-interval-index-only-before-90ffbf1.jso
 controller identity and the original range independently. On `hci1`, the new code requests 12–16
 while ON, saves an address-based journal, and restores 24–40 while OFF. The journal is then absent;
 diagnostics report BlueZ's own identity. Current mode is OFF, with no paired Hosts. Automatic
-renumbering recovery of this new revision still needs a separate real reset test. The earlier ZIP
-does not include this fix and must be rebuilt before final package acceptance.
+renumbering recovery of this new revision still needs a separate real reset test. The subsequently
+rebuilt and fully deployed ZIP includes this fix, as recorded under Current packaged artifact.
 
 ### Real pairing-window timeout — incomplete reconnect gate
 
