@@ -200,6 +200,31 @@ class PanelActionsThatFail(FailureCase):
         self.assertEqual(state["error"]["code"], "disconnect_failed")
         self.assertEqual(state["error"]["title"], "Could not disconnect mbp2019")
 
+    async def test_failed_disconnect_does_not_pause_a_later_reconnection(self):
+        self.bluez.reject_disconnect = "Not Connected"
+        await self.plugin.disconnect_host(HOST_ADDRESS)
+        await self.bluez.host_disconnects(self.device)
+        state = await when(self.plugin, lambda s: s["connection"] == "waiting")
+        self.assertEqual(state["connection"], "waiting")
+        self.assertIsNotNone(self.bluez.advertisement)
+
+    async def test_cancelled_disconnect_does_not_pause_a_later_reconnection(self):
+        entered = asyncio.Event()
+
+        async def pending(_):
+            entered.set()
+            await asyncio.Future()
+
+        with mock.patch.object(self.plugin._controller_mode._peripheral, "disconnect_device", pending):
+            task = asyncio.create_task(self.plugin.disconnect_host(HOST_ADDRESS))
+            await entered.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        await self.bluez.host_disconnects(self.device)
+        state = await when(self.plugin, lambda s: s["connection"] == "waiting")
+        self.assertEqual(state["connection"], "waiting")
+
     async def test_forgetting_while_controller_mode_is_off_and_bluetooth_is_not_running_says_so(self):
         await self.plugin.set_controller_mode(False)
         await self.bluez.stop_service()

@@ -76,29 +76,41 @@ class Connections:
 
     async def reconcile(self):
         """Advertise for paired hosts exactly while one could reconnect and pairing mode is closed."""
-        peripheral = self._peripheral
-        if peripheral is None or self._pairing.accepting:
+        if self._pairing.accepting:
             return
-        try:
-            if self._paired_hosts.all() and not self._paused and not self._connected_hosts():
-                await peripheral.advertise(discoverable=False)
+        async with self._pairing.advertising_lock:
+            peripheral = self._peripheral
+            if peripheral is None or self._pairing.accepting:
+                return
+            try:
+                if self._paired_hosts.all() and not self._paused and not self._connected_hosts():
+                    await peripheral.advertise(discoverable=False)
+                else:
+                    await peripheral.stop_advertising()
+            except Exception as e:
+                log.warning("Could not update the reconnect advertisement: %r", e)
+                if self._peripheral is peripheral:
+                    self._error = errors.reconnect_unavailable(repr(e))
             else:
-                await peripheral.stop_advertising()
-        except Exception as e:
-            log.warning("Could not update the reconnect advertisement: %r", e)
-            if self._peripheral is peripheral:
-                self._error = errors.reconnect_unavailable(repr(e))
-        else:
-            self._error = None
+                if self._peripheral is peripheral:
+                    self._error = None
 
     async def disconnect(self, address):
         """Drop the link, keep the pairing, and pause reconnecting."""
         device = self._devices_by_address().get(address)
         if self._peripheral is None or address not in self._paired_hosts or not device or not device.get("Connected"):
             return
+        peripheral = self._peripheral
+        paused = self._paused
         self._paused = True
         log.info("Disconnecting %s", address)
-        await self._peripheral.disconnect_device(device["path"])
+        try:
+            await peripheral.disconnect_device(device["path"])
+        except BaseException:
+            if self._peripheral is peripheral:
+                self._paused = paused
+                await self.reconcile()
+            raise
         await self.reconcile()
 
     async def forget(self, address):

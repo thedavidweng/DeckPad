@@ -35,6 +35,8 @@ class PairingMode:
         self._deadline = None
         self._timer = None
         self._tasks = Tasks()
+        # Pairing and reconnect decisions share this lock; Peripheral serializes the registrations.
+        self.advertising_lock = asyncio.Lock()
 
     def snapshot(self):
         seconds_left = None
@@ -71,21 +73,26 @@ class PairingMode:
         self._reset(CLOSED)
 
     async def open(self):
-        if self._peripheral is None or self.accepting:
-            return
-        self._reset(DISCOVERABLE)
-        try:
-            await self._peripheral.advertise()
-        except Exception as e:
-            log.warning("Could not start advertising: %r", e)
-            self._reset(FAILED, error=errors.advertising_failed(repr(e)))
-            await self._publish()
-            return
-        timeout = TIMEOUT
-        loop = asyncio.get_running_loop()
-        self._deadline = loop.time() + timeout
-        self._timer = loop.call_later(timeout, self._expired)
-        log.info("Pairing Mode open for %ds", timeout)
+        async with self.advertising_lock:
+            if self._peripheral is None or self.accepting:
+                return
+            peripheral = self._peripheral
+            self._reset(DISCOVERABLE)
+            try:
+                await peripheral.advertise()
+            except Exception as e:
+                if self._peripheral is not peripheral:
+                    return
+                log.warning("Could not start advertising: %r", e)
+                self._reset(FAILED, error=errors.advertising_failed(repr(e)))
+            else:
+                if self._peripheral is not peripheral or not self.accepting:
+                    return
+                timeout = TIMEOUT
+                loop = asyncio.get_running_loop()
+                self._deadline = loop.time() + timeout
+                self._timer = loop.call_later(timeout, self._expired)
+                log.info("Pairing Mode open for %ds", timeout)
         await self._publish()
 
     async def close(self):
@@ -172,8 +179,10 @@ class PairingMode:
             self._timer = None
 
     async def _withdraw(self):
-        if self._peripheral is not None:
-            await self._peripheral.stop_advertising()
+        async with self.advertising_lock:
+            # An old completion must not withdraw a newly opened pairing window.
+            if self._peripheral is not None and self._status != DISCOVERABLE:
+                await self._peripheral.stop_advertising()
 
     async def _publish(self):
         await self._on_change()

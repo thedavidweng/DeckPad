@@ -252,6 +252,25 @@ class PairingFailures(PluginTestCase):
 
 
 class PairingModeAndControllerMode(PluginTestCase):
+    async def test_late_advertisement_reply_after_unload_does_not_create_a_timer(self):
+        await self.plugin.set_controller_mode(True)
+        mode = self.plugin._controller_mode
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def pending(*_):
+            entered.set()
+            await release.wait()
+
+        with mock.patch.object(mode._peripheral, "advertise", pending):
+            task = asyncio.create_task(self.plugin.set_pairing_mode(True))
+            await entered.wait()
+            await self.plugin._unload()
+            release.set()
+            state = await task
+        self.assertEqual(state["pairing"]["status"], "closed")
+        self.assertIsNone(mode._pairing._timer)
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
     async def test_turning_controller_mode_off_ends_pairing_mode_cleanly(self):
         await self.plugin.set_controller_mode(True)
         await self.plugin.set_pairing_mode(True)
