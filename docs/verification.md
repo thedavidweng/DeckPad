@@ -10,14 +10,14 @@ Every code change was committed independently after relevant tests passed. No co
 | Check | Result |
 |---|---|
 | Full Python behavior suite, Linux Python 3.11.7 container | 325 tests passed |
-| Full Python behavior suite, Linux Python 3.12.3 (`orca`) | 325 tests passed |
+| Full Python behavior suite, Linux Python 3.12.3 (`orca`) | 327 tests passed, including the Disconnect write-result regressions |
 | Frontend behavior tests, local Node 24.21.0 | 14 tests passed |
 | TypeScript 7 typecheck and official Rollup preset build | Passed with frozen dependency installation |
 | Ruff 0.15.0 (`F`, `E9`), Python compilation, whitespace checks | Passed; D-Bus signature annotations suppress only their exact false-positive lines |
 | Actual official Decky CLI 0.0.7 ZIP | Final revision: 81 files verified, including backend bytes, API/root metadata and vendored licenses |
 | GitHub Actions | Workflow configured for Python 3.11/3.12, frontend checks, static checks and official packaging; not run remotely because nothing was pushed |
 | Decky embedded Python 3.11.7 | Current archive loaded on LCD, Decky 3.2.10; dbus-fast 5.2.0, real GATT registration, hidraw input reader and MGMT calls succeeded |
-| Steam Deck LCD: startup, pairing, every Host-side control, disconnect/reconnect, exit, uninstall | Fresh run pending |
+| Steam Deck LCD: startup, pairing, every Host-side control, disconnect/reconnect, exit, uninstall | Startup and backend cleanup/recovery checks completed below; fresh HID pairing, input, UI exit and uninstall remain pending |
 | Gaming Mode QAM, focus capture, Steam/QAM buttons, all menu restoration paths, diagnostics copy | Fresh run pending |
 | Official Plugin Store testing and review | Not submitted or approved; third-party Stable/Beta reports and code-provenance eligibility remain open |
 
@@ -56,7 +56,8 @@ These checks used official Decky backend routes through the running Steam CEF, n
 The existing Mac bond reaches BlueZ `Connected: yes`, but macOS displays the gamepad as not connected;
 DeckPad records **zero delivered reports / no Host subscribed**. This is not a successful HID
 reconnect or input test. A fresh pairing is pending user confirmation, followed by actual controls,
-QAM, focus, clipboard, Bluetooth recovery, abnormal termination and uninstall checks.
+QAM, focus, clipboard and uninstall checks. Bluetooth recovery and abnormal termination were
+subsequently checked with the results and limitations recorded below.
 
 Observed limitations: startup cleanup's `Device1.Disconnect` reaches its three-second timeout for this
 old Mac connection. Repeated loader reloads also print pending `WSRouter._call_route` task warnings
@@ -176,10 +177,10 @@ was added. Each row records why the retained mechanism is necessary and the chec
 
 | Module | Responsibility and simplest retained mechanism | Evidence / limit |
 |---|---|---|
-| `device_id.py` | One `/proc` write boundary, exact BlueZ version, unique image match, process/byte checks and verified restore/short-write rollback | Fault injection; actual daemon writes still need fresh LCD verification |
+| `device_id.py` | One `/proc` write boundary, exact BlueZ version, unique image match, process/byte checks and verified restore/short-write rollback | Fault injection plus current LCD ON/OFF, reload and manual crash-restoration readbacks; automatic recovery through Loader remains unproven |
 | `connection_interval.py` | MGMT range transaction; synced original journal, write/readback, compare before restore, retain failed recovery | Malformed packet/TLV/status and recovery faults; no speculative overwrite |
 | `bluez.py` | One bounded message-call entry; remaining functions map directly to BlueZ methods | Bus timeout, loss, transport and cancellation tests; no introspection proxy |
-| `hci_socket.py` | One Linux socket/bind boundary with declared libc ABI and six-byte address | ABI/layout and close-on-failure tests; embedded interpreter still pending |
+| `hci_socket.py` | One Linux socket/bind boundary with declared libc ABI and six-byte address | ABI/layout and close-on-failure tests; actual embedded runtime opened MGMT/HCI sockets during the LCD checks |
 | `link_monitor.py` | Own one socket/reader; parse only connection/update/disconnect events; forget pacing on loss | Exact lengths, handles, roles, intervals and EOF/error tests; 60 ms is the measured conservative rate, not a universal guarantee |
 | `bluetooth_watch.py` | Independent owned bus, notify loss once; recovery belongs to ControllerMode | Connect cancellation, disconnect and repeated signal tests |
 | `peripheral.py` | Session bus owns registrations; reverse cleanup plus connection close; fixed handles fail visibly | Registration/cancellation/teardown tests; public GATT reads cannot claim unrelated devices |
@@ -200,7 +201,7 @@ was added. Each row records why the retained mechanism is necessary and the chec
 | `hosts.py` | Canonical validated MAC/name ownership records; no persisted connection state | Bad records, reload and unrelated-device tests; failed save is logged while runtime ownership is retained after an irreversible bond change |
 | `settings.py`, `storage.py` | One strict boolean preference; synced atomic JSON replacement and temporary-file cleanup | Invalid types, failed writes, original-file preservation and actionable retry tests |
 | `diagnostics.py` | One read-only collection feeds summary/text; bounded bus calls and off-loop privileged reads; label addresses | No Bluetooth, denied access, thread ownership and redaction tests; inspect arbitrary external log text before sharing |
-| `__init__.py` | Add the vendored XML path only for missing `xml.etree` | Stripped interpreter subprocess and unrelated missing-module test; genuine embedded process pending |
+| `__init__.py` | Add the vendored XML path only for missing `xml.etree` | Stripped interpreter subprocess and unrelated missing-module test; current archive loaded in Decky's genuine embedded Python 3.11.7 |
 | `backend.ts` | Sole RPC/event boundary; live events beat initial query, stale callbacks ignored; preview watcher count owns subscription | Initial/event race, unmount and overlapping watcher tests |
 | `controller_screen.tsx` | Official router/navigation/focus; retain the exact private menu switch until restoration succeeds | Partial disable, changed store, failed restore, touch close and dismount tests; hardware menu/chord checks pending |
 | `index.tsx` | Render backend facts using official components; one shared request handler | All QAM action paths clear old transport errors; backend errors remain backend-owned |
@@ -213,7 +214,7 @@ was added. Each row records why the retained mechanism is necessary and the chec
 
 | Environment / interface | Current status |
 |---|---|
-| BlueZ 5.83 DeviceID | Explicitly allowed after process/unique-byte checks; historical hardware evidence, new safety paths tested with faults |
+| BlueZ 5.83 DeviceID | Explicitly allowed after process/unique-byte checks; current LCD ON/OFF and recovery readbacks verified, with fault-injection tests for safety paths |
 | Other BlueZ versions / unverified executable | No memory write; Hosts may read the daemon's generic identity; overall pairing/input compatibility unverified |
 | Fixed GATT Handle conflict | Startup error and Session rollback; no dynamic-handle retry based on ambiguous `Failed` |
 | Steam private menu switch absent | Menus remain enabled; official focus handling still applies |
@@ -227,7 +228,7 @@ was added. Each row records why the retained mechanism is necessary and the chec
 
 The hardware results below describe the earlier implementation on this setup. They explain the
 protocol and private-interface decisions; they do **not** validate the revised implementation. The
-current LCD Deck is unavailable over SSH, so a fresh acceptance run is pending.
+current LCD checks are recorded above; the remaining HID and UI acceptance gates are still open.
 
 | | Version |
 |---|---|
