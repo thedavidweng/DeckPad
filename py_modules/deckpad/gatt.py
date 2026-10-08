@@ -5,6 +5,7 @@ and BlueZ then rejects the application with "No valid service object found".
 """
 
 from dbus_fast import Variant
+from dbus_fast.errors import DBusError
 from dbus_fast.service import PropertyAccess, ServiceInterface, dbus_property, method
 
 
@@ -13,8 +14,21 @@ def uuid16(short):
 
 
 def _offset(options):
-    offset = options.get("offset")
-    return int(offset.value) if isinstance(offset, Variant) else 0
+    if "offset" not in options:
+        return 0
+    offset = options["offset"]
+    if not isinstance(offset, Variant) or offset.signature != "q":
+        raise DBusError("org.bluez.Error.InvalidArguments", "Offset must be uint16")
+    return offset.value
+
+
+def _read(value, flags, options):
+    if not any(flag in flags for flag in ("read", "encrypt-read")):
+        raise DBusError("org.bluez.Error.NotPermitted", "Value is not readable")
+    offset = _offset(options)
+    if offset > len(value):
+        raise DBusError("org.bluez.Error.InvalidOffset", "Offset exceeds value length")
+    return value[offset:]
 
 
 def _device(options):
@@ -46,8 +60,9 @@ class Descriptor(ServiceInterface):
 
     @method()
     def ReadValue(self, options: "a{sv}") -> "ay":
+        value = _read(self.value, self._flags, options)
         self._application.host_seen(_device(options))
-        return self.value[_offset(options):]
+        return value
 
 
 class Characteristic(ServiceInterface):
@@ -87,19 +102,35 @@ class Characteristic(ServiceInterface):
 
     @method()
     def ReadValue(self, options: "a{sv}") -> "ay":
+        value = _read(self.value, self._flags, options)
         self.application.host_seen(_device(options))
-        return self.value[_offset(options):]
+        return value
 
     @method()
     def WriteValue(self, value: "ay", options: "a{sv}"):
+        if not any(flag in self._flags for flag in ("write", "encrypt-write", "write-without-response")):
+            raise DBusError("org.bluez.Error.NotPermitted", "Value is not writable")
+        if _offset(options) != 0:
+            raise DBusError("org.bluez.Error.InvalidOffset", "Partial HID writes are not supported")
+        if len(value) != len(self.value):
+            raise DBusError("org.bluez.Error.InvalidValueLength", "Incorrect HID value length")
+        if self._uuid == uuid16("2a4c") and value not in (b"\x00", b"\x01"):
+            raise DBusError("org.bluez.Error.NotSupported", "Unknown HID control point")
+        if self._uuid == uuid16("2a4e") and value != b"\x01":
+            raise DBusError("org.bluez.Error.NotSupported", "Only Report Protocol is supported")
+        # Suspend and rumble are accepted without side effects; Boot Protocol is not advertised.
         self.application.host_seen(_device(options))
 
     @method()
     def StartNotify(self):
+        if "notify" not in self._flags:
+            raise DBusError("org.bluez.Error.NotSupported", "Value does not support notifications")
         self.notifying = True
 
     @method()
     def StopNotify(self):
+        if "notify" not in self._flags:
+            raise DBusError("org.bluez.Error.NotSupported", "Value does not support notifications")
         self.notifying = False
 
 
@@ -167,7 +198,3 @@ class Application:
     def export(self, bus):
         for obj in self._objects():
             bus.export(obj.path, obj)
-
-    def unexport(self, bus):
-        for obj in self._objects():
-            bus.unexport(obj.path, obj)
