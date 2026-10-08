@@ -357,8 +357,11 @@ export default definePlugin(() => {
     content: <Content />,
     icon: <GamepadIcon />,
     onDismount() {
-      restoreSteamMenus();
-      routerHook.removeRoute(CONTROLLER_SCREEN_ROUTE);
+      try {
+        restoreSteamMenus();
+      } finally {
+        routerHook.removeRoute(CONTROLLER_SCREEN_ROUTE);
+      }
     },
   };
 });
