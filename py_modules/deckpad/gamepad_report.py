@@ -8,25 +8,27 @@ digital clicks have no place in it and are dropped.
 
 import struct
 
+from .identity import NEUTRAL_GAMEPAD_REPORT
+
 DECK_STATE_REPORT_SIZE = 64
 _DECK_STATE_REPORT_TYPE = 0x09
 
 _TRIGGER_MAX = 1023
 
-# (Deck report byte, bit) -> (Xbox report button byte index 0..2, mask)
+# Deck report byte/bit, Xbox report button byte index/mask, and preview name.
 _BUTTONS = (
-    ((8, 7), (0, 0x01)),  # A
-    ((8, 5), (0, 0x02)),  # B
-    ((8, 6), (0, 0x08)),  # X
-    ((8, 4), (0, 0x10)),  # Y
-    ((8, 3), (0, 0x40)),  # LB
-    ((8, 2), (0, 0x80)),  # RB
-    ((9, 4), (1, 0x04)),  # View
-    ((9, 6), (1, 0x08)),  # Menu
-    ((9, 5), (1, 0x10)),  # Steam -> Guide
-    ((10, 6), (1, 0x20)),  # L3
-    ((11, 2), (1, 0x40)),  # R3
-    ((14, 2), (2, 0x01)),  # Quick Access -> Share
+    ((8, 7), (0, 0x01), "a"),  # A
+    ((8, 5), (0, 0x02), "b"),  # B
+    ((8, 6), (0, 0x08), "x"),  # X
+    ((8, 4), (0, 0x10), "y"),  # Y
+    ((8, 3), (0, 0x40), "lb"),  # LB
+    ((8, 2), (0, 0x80), "rb"),  # RB
+    ((9, 4), (1, 0x04), "view"),  # View
+    ((9, 6), (1, 0x08), "menu"),  # Menu
+    ((9, 5), (1, 0x10), "guide"),  # Steam -> Guide
+    ((10, 6), (1, 0x20), "l3"),  # L3
+    ((11, 2), (1, 0x40), "r3"),  # R3
+    ((14, 2), (2, 0x01), "share"),  # Quick Access -> Share
 )
 
 # Hat positions indexed by (vertical, horizontal), each -1, 0 or 1 (up/right positive).
@@ -42,7 +44,7 @@ _HAT = {
 }
 
 
-AT_REST = struct.pack("<HHHHHHBBBB", 0x8000, 0x8000, 0x8000, 0x8000, 0, 0, 0, 0, 0, 0)
+AT_REST = NEUTRAL_GAMEPAD_REPORT
 
 # Moonlight's quit combo: Menu + View + LB + RB, and no other button or D-pad direction. Sticks and
 # triggers do not count, as in Moonlight.
@@ -61,7 +63,7 @@ def gamepad_report(deck_state):
     lt, rt, lx, ly, rx, ry = struct.unpack_from("<hhhhhh", deck_state, 44)
 
     buttons = [0, 0, 0]
-    for (offset, bit), (index, mask) in _BUTTONS:
+    for (offset, bit), (index, mask), _name in _BUTTONS:
         if deck_state[offset] & (1 << bit):
             buttons[index] |= mask
 
@@ -82,21 +84,6 @@ def gamepad_report(deck_state):
     )
 
 
-_BUTTON_NAMES = (
-    (0, 0x01, "a"),
-    (0, 0x02, "b"),
-    (0, 0x08, "x"),
-    (0, 0x10, "y"),
-    (0, 0x40, "lb"),
-    (0, 0x80, "rb"),
-    (1, 0x04, "view"),
-    (1, 0x08, "menu"),
-    (1, 0x10, "guide"),
-    (1, 0x20, "l3"),
-    (1, 0x40, "r3"),
-    (2, 0x01, "share"),
-)
-
 # Hat position -> D-pad directions held.
 _HAT_DIRECTIONS = {
     0: (),
@@ -115,7 +102,7 @@ def describe(report):
     """A report as the controller screen draws it: names of the buttons and D-pad directions held,
     sticks from -1 to 1 with Y pointing down, and triggers from 0 to 1."""
     lx, ly, rx, ry, lt, rt, hat, *buttons = struct.unpack("<HHHHHHBBBB", report)
-    held = [name for index, mask, name in _BUTTON_NAMES if buttons[index] & mask]
+    held = [name for _deck, (index, mask), name in _BUTTONS if buttons[index] & mask]
     held.extend("dpad_" + direction for direction in _HAT_DIRECTIONS.get(hat, ()))
     return {
         "buttons": held,
