@@ -247,6 +247,25 @@ This proves the menu switch's current state, not that physical presses leave the
 unchanged; that observation still requires the user's response. No automatic test substitutes
 for full control mapping, focus isolation or Quit Combo acceptance.
 
+The follow-up native Mac capture `/tmp/deckpad-mac-input-remaining.log` confirms all four stick
+axes reaching -1.0 and +1.0 and returning to center, both analog triggers reaching 1.0 and
+releasing, and L3/R3 and Share presses and releases. A simultaneous direct hidraw capture of
+the Deck's own controller verifies the physical press bits; independent Bluetooth notifications
+in `/tmp/deckpad-special-buttons.btsnoop` carry L3/R3/Guide (`70` in the second button byte)
+and Share (`01` in the third byte), followed by released reports. The Mac receives L3/R3/Share;
+Home/Guide does not appear in its GameController callback. Apple's `buttonHome` documentation
+states that the system may consume that event before passing it to an application. Guide's
+transport encoding is verified, but its application callback is not claimed as verified.
+The user confirmed completing the requested presses with the Deck interface behaving normally.
+
+The user then held Menu + View + L1 + R1 and confirmed exit and normal operation of both Steam
+and Quick Access menus. Backend inspection confirms OFF, closed pairing, no advertisement,
+inactive DeviceID override, original interval 24–40 and no error; the existing Mac pairing
+remains. The Steam menu switch is true again. The Mac's final input callback is neutral,
+with no pressed button or D-pad, centered sticks and released triggers. This verifies the
+Quit Combo exit path; explicit Close, disabling Quit Combo and reload/unload UI paths remain
+separate acceptance gates.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
