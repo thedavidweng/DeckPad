@@ -6,11 +6,14 @@ round trip and does not depend on BlueZ's introspection data.
 
 import contextlib
 import asyncio
+import logging
 
 from dbus_fast import BusType, Message, MessageType, Variant
 from dbus_fast.aio import MessageBus
 
 from . import errors
+
+log = logging.getLogger("deckpad.bluez")
 
 SERVICE = "org.bluez"
 AGENT_MANAGER_PATH = "/org/bluez"
@@ -146,7 +149,20 @@ def send_disconnect_device(bus, device_path):
     before the caller closes the connection, and the daemon delivers it to bluetoothd ahead of the
     disconnect notice.
     """
-    bus.send(Message(destination=SERVICE, path=device_path, interface=DEVICE, member="Disconnect"))
+    sent = bus.send(Message(destination=SERVICE, path=device_path, interface=DEVICE, member="Disconnect"))
+    if sent.done():
+        sent.result()
+    else:
+        sent.add_done_callback(_disconnect_sent)
+
+
+def _disconnect_sent(sent):
+    try:
+        sent.result()
+    except asyncio.CancelledError:
+        pass
+    except OSError as e:
+        log.warning("Disconnect write failed: %r", e)
 
 
 async def watch_devices(bus):

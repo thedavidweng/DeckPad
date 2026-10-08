@@ -2,13 +2,29 @@
 
 import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from dbus_fast import Message, MessageType
 from deckpad import bluez
 
 
 class CallBoundary(unittest.IsolatedAsyncioTestCase):
+    async def test_immediate_disconnect_write_failure_is_observed(self):
+        sent = asyncio.get_running_loop().create_future()
+        sent.set_exception(BrokenPipeError("bus closed"))
+        bus = Mock(send=Mock(return_value=sent))
+        with self.assertRaises(BrokenPipeError):
+            bluez.send_disconnect_device(bus, "/org/bluez/hci0/dev_AA")
+
+    async def test_pending_disconnect_write_failure_is_logged(self):
+        sent = asyncio.get_running_loop().create_future()
+        bus = Mock(send=Mock(return_value=sent))
+        bluez.send_disconnect_device(bus, "/org/bluez/hci0/dev_AA")
+        with self.assertLogs("deckpad.bluez", level="WARNING") as logs:
+            sent.set_exception(BrokenPipeError("bus closed"))
+            await asyncio.sleep(0)
+        self.assertIn("Disconnect write failed", logs.output[0])
+
     async def test_an_unresponsive_daemon_becomes_an_unavailable_error(self):
         class UnresponsiveBus:
             async def call(self, message):
