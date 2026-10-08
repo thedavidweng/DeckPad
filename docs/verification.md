@@ -266,6 +266,25 @@ with no pressed button or D-pad, centered sticks and released triggers. This ver
 Quit Combo exit path; explicit Close, disabling Quit Combo and reload/unload UI paths remain
 separate acceptance gates.
 
+### QAM diagnostic clipboard — verified, 2026-10-08
+
+The user opened Troubleshooting, Show Diagnostics and Copy Diagnostics in the real DeckPad panel
+and reported `Copied to the clipboard.`. A read-only inspection of `QuickAccess_uid2` independently
+shows the expected diagnostic rows, saved-file path and success message. Reading the actual CEF
+clipboard yields a 6,313-character diagnostic report; its SHA-256 is
+`0ebe2e6fb602dedf299c1a724657a146a06aaa3d07b763b0812ab479f17935a8`, exactly matching
+`/home/deck/homebrew/logs/DeckPad/diagnostics.txt` (6,313 bytes). The report begins with
+`DeckPad diagnostics,`. This verifies copied contents as well as the user-visible result, with
+Controller Mode OFF and one retained Mac pairing. It does not independently establish which
+of the existing copy helper's two write paths succeeded or prove its failure handling.
+
+The subsequent clean reconnection test starts Controller Mode without reopening Pairing Mode or
+deleting either pairing. The Mac establishes a subscribed HID link at 15 ms; diagnostics record
+2,554 delivered reports with no error and no active advertisement. A user confirmation and native
+Mac button callback are still required before this is recorded as a completed reconnect/input gate.
+Artifacts: `/tmp/deckpad-mac-clean-reconnect.btsnoop`,
+`/tmp/deckpad-clean-reconnect-diagnostics.json` and `/tmp/deckpad-mac-reconnect-input.log`.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
