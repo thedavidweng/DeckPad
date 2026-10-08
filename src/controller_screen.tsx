@@ -1,6 +1,6 @@
 import { Focusable, GamepadButton, GamepadEvent, Navigation } from "@decky/ui";
 import { useEffect, useRef, useState } from "react";
-import { ControllerModeState, connectedHostName, useControllerModeState, useGamepadPreview } from "./backend";
+import { ControllerModeState, connectedHostName, hostNames, useControllerModeState, useGamepadPreview } from "./backend";
 import { GamepadOutline } from "./gamepad_outline";
 
 export const CONTROLLER_SCREEN_ROUTE = "/deckpad/controller";
@@ -81,7 +81,8 @@ function headline(state: ControllerModeState | null): [string, string] {
   if (state.status === "recovering") return ["Waiting for Bluetooth", "Controller Mode resumes as soon as it is back."];
   if (state.status !== "on") return ["Controller Mode is off", "Press B to go back."];
   if (state.connection === "connected") {
-    return [`Connected to ${connectedHostName(state) ?? "a paired device"}`, "Your controls are going to this device."];
+    const name = connectedHostName(state.hosts, hostNames(state.hosts));
+    return [`Connected to ${name ?? "a paired device"}`, "Your controls are going to this device."];
   }
   if (state.connection === "paused") return ["Disconnected", "Allow reconnecting in DeckPad's panel."];
   return ["Waiting for a paired device", "It reconnects on its own, or connect to this Deck from its Bluetooth settings."];

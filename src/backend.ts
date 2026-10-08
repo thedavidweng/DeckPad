@@ -66,38 +66,43 @@ export interface GamepadPreview {
 const GAMEPAD_EVENT = "gamepad_report";
 const watchGamepad = callable<[enabled: boolean], void>("watch_gamepad");
 
-// The backend only forwards reports while someone watches, so keep watching just as long as `active`.
-export function useGamepadPreview(active: boolean): GamepadPreview | null {
-  const [report, setReport] = useState<GamepadPreview | null>(null);
+// Holds the latest payload of `event` while `active`. `subscribed` runs once the listener is in place
+// and may return its own cleanup.
+function useBackendEvent<T>(
+  event: string,
+  active: boolean,
+  subscribed: (set: (value: T | null) => void) => (() => void) | void,
+): T | null {
+  const [value, setValue] = useState<T | null>(null);
 
   useEffect(() => {
     if (!active) {
-      setReport(null);
+      setValue(null);
       return;
     }
-    const listener = addEventListener<[GamepadPreview]>(GAMEPAD_EVENT, setReport);
-    watchGamepad(true).catch(() => {});
+    const listener = addEventListener<[T]>(event, setValue);
+    const cleanup = subscribed(setValue);
     return () => {
-      removeEventListener(GAMEPAD_EVENT, listener);
-      watchGamepad(false).catch(() => {});
+      removeEventListener(event, listener);
+      cleanup?.();
     };
-  }, [active]);
+  }, [event, active]);
 
-  return report;
+  return value;
+}
+
+// The backend only forwards reports while someone watches, so keep watching just as long as `active`.
+export function useGamepadPreview(active: boolean): GamepadPreview | null {
+  return useBackendEvent<GamepadPreview>(GAMEPAD_EVENT, active, () => {
+    watchGamepad(true).catch(() => {});
+    return () => watchGamepad(false).catch(() => {});
+  });
 }
 
 export function useControllerModeState(): ControllerModeState | null {
-  const [state, setState] = useState<ControllerModeState | null>(null);
-
-  useEffect(() => {
-    const listener = addEventListener<[ControllerModeState]>(STATE_EVENT, setState);
-    getState().then(setState).catch(() => setState(null));
-    return () => {
-      removeEventListener(STATE_EVENT, listener);
-    };
-  }, []);
-
-  return state;
+  return useBackendEvent<ControllerModeState>(STATE_EVENT, true, (set) => {
+    getState().then(set).catch(() => set(null));
+  });
 }
 
 // Hosts whose name Bluetooth has not learned yet get a numbered placeholder instead of an address.
@@ -116,7 +121,7 @@ export function hostNames(hosts: PairedHost[]): Map<string, string> {
 }
 
 // The backend keeps only one host connected at a time.
-export function connectedHostName(state: ControllerModeState): string | null {
-  const host = state.hosts.find((h) => h.connected);
-  return host ? (hostNames(state.hosts).get(host.address) ?? null) : null;
+export function connectedHostName(hosts: PairedHost[], names: Map<string, string>): string | undefined {
+  const host = hosts.find((h) => h.connected);
+  return host && names.get(host.address);
 }

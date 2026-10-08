@@ -152,10 +152,12 @@ function PairingRows({ pairing, onRequestError }: { pairing: PairingState; onReq
 
 function ConnectionRows({
   state,
+  names,
   screenOpen,
   onRequestError,
 }: {
   state: ControllerModeState;
+  names: Map<string, string>;
   screenOpen: boolean;
   onRequestError: () => void;
 }) {
@@ -165,7 +167,7 @@ function ConnectionRows({
         <>
           <PanelSectionRow>
             <Field
-              label={`Connected to ${connectedHostName(state) ?? "a paired device"}`}
+              label={`Connected to ${connectedHostName(state.hosts, names) ?? "a paired device"}`}
               description="Your controls are going to this device."
               focusable
             />
@@ -310,7 +312,7 @@ function Content() {
           </PanelSectionRow>
         )}
         {state.status === "on" && (
-          <ConnectionRows state={state} screenOpen={screenOpen} onRequestError={onRequestError} />
+          <ConnectionRows state={state} names={names} screenOpen={screenOpen} onRequestError={onRequestError} />
         )}
         {state.status === "on" && <PairingRows pairing={state.pairing} onRequestError={onRequestError} />}
         {state.status === "on" && state.controls && !state.controls.available && (
