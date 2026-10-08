@@ -67,6 +67,8 @@ class DeckControls:
         return bool(self._available)
 
     def start(self):
+        if self._running:
+            return
         self._running = True
         self._open()
 
@@ -77,6 +79,7 @@ class DeckControls:
             self._retry.cancel()
             self._retry = None
         self._close()
+        self._quit_combo_held = False
         self._pacer.close()
 
     def _open(self):
@@ -87,12 +90,13 @@ class DeckControls:
         if path is not None:
             try:
                 self._fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+                asyncio.get_running_loop().add_reader(self._fd, self._readable)
             except OSError as e:
+                self._close()
                 if self.problem != "open %s: %r" % (path, e):
                     log.warning("Could not open the Deck's controller at %s: %r", path, e)
                 self.problem = "open %s: %r" % (path, e)
             else:
-                asyncio.get_running_loop().add_reader(self._fd, self._readable)
                 self._missing_logged = False
                 self.problem = None
                 log.info("Reading Deck Controls from %s", path)
@@ -161,4 +165,6 @@ class DeckControls:
     def _lost(self, reason):
         log.warning("Lost the Deck's controller (%s); reopening", reason)
         self._close()
+        self._quit_combo_held = False
+        self._pacer.send_now(AT_REST)
         self._retry = asyncio.get_running_loop().call_later(REOPEN_DELAY, self._open)

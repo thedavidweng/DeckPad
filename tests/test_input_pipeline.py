@@ -158,6 +158,25 @@ class NobodyListening(InputCase):
 
 
 class ReadingTheController(InputCase):
+    async def test_controller_loss_releases_held_buttons_and_can_reopen(self):
+        await self.connect_host()
+        await self.press(deck_state_report("A"), until=lambda: A_HELD in self.bluez.gamepad_reports())
+        self.controller.unplug()
+        self.assertTrue(await eventually(lambda: self.bluez.gamepad_reports()[-1] == AT_REST))
+        self.controller.plug_in()
+        self.assertTrue(await self.press(deck_state_report("A"),
+                                         until=lambda: self.bluez.gamepad_reports()[-1] == A_HELD))
+
+    async def test_controller_loss_discards_a_pending_press(self):
+        await self.connect_host()
+        await self.press(deck_state_report("A"), until=lambda: A_HELD in self.bluez.gamepad_reports())
+        self.controller.send(deck_state_report("B"))
+        await asyncio.sleep(0.01)
+        self.controller.unplug()
+        self.assertTrue(await eventually(lambda: self.bluez.gamepad_reports()[-1] == AT_REST))
+        await asyncio.sleep(FALLBACK_REPORT_INTERVAL * 2)
+        self.assertEqual(self.bluez.gamepad_reports()[-1], AT_REST)
+
     async def test_the_controller_is_read_only_while_controller_mode_is_on(self):
         self.assertFalse(self.controller.is_open())
 
