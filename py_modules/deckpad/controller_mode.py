@@ -145,7 +145,14 @@ class ControllerMode:
 
     async def set_quit_combo(self, enabled):
         """When off, the quit combo goes to the host like any other press."""
-        self._settings.set_quit_combo(enabled)
+        try:
+            self._settings.set_quit_combo(enabled)
+        except OSError as e:
+            log.warning("Could not save Quit Combo: %r", e)
+            self._record_error(errors.settings_failed(repr(e)))
+        else:
+            if self._error is not None and self._error.code == "settings_failed":
+                self._error = None
         await self._changed()
         return self.snapshot()
 

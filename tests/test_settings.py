@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from deckpad.settings import Settings
+from deckpad.controller_mode import ControllerMode
 
 
 class QuitComboSettings(unittest.TestCase):
@@ -36,3 +37,23 @@ class QuitComboSettings(unittest.TestCase):
             for value in ("false", 0, None):
                 with self.subTest(value=value), self.assertRaises(ValueError):
                     settings.set_quit_combo(value)
+
+
+class QuitComboFailure(unittest.IsolatedAsyncioTestCase):
+    async def test_failed_save_is_actionable_and_a_successful_retry_clears_it(self):
+        published = []
+
+        async def changed(state):
+            published.append(state)
+
+        mode = ControllerMode(settings=Settings("settings.json"), on_change=changed)
+        with patch("deckpad.settings.storage.save", side_effect=OSError("disk full")):
+            state = await mode.set_quit_combo(False)
+        self.assertTrue(state["quit_combo"])
+        self.assertEqual(state["error"]["code"], "settings_failed")
+        self.assertEqual(published[-1], state)
+        with patch("deckpad.settings.storage.save"):
+            state = await mode.set_quit_combo(False)
+        self.assertFalse(state["quit_combo"])
+        self.assertIsNone(state["error"])
+        mode.shutdown()

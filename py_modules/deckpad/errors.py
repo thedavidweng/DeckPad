@@ -137,3 +137,13 @@ def reconnect_unavailable(detail=None):
         detail,
         "Paired devices cannot reconnect",
     )
+
+
+def settings_failed(detail=None):
+    return ControllerModeError(
+        "settings_failed",
+        "The previous setting is still in use. Check the Deck's free disk space and try again; "
+        "if it keeps failing, collect diagnostics.",
+        detail,
+        "Could not save Quit Combo",
+    )
