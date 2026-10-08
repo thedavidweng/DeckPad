@@ -170,12 +170,20 @@ class ControllerMode:
         """Does nothing unless controller mode is on."""
         async with self._lock:
             if self._status == ON:
-                if enabled:
-                    # Before the advertisement goes up, so a host connecting to pair keeps its interval.
-                    self._update_interval(pairing=True)
-                    await self._pairing.open()
-                else:
-                    await self._pairing.close()
+                try:
+                    if enabled:
+                        # Before the advertisement goes up, so a host connecting to pair keeps its interval.
+                        self._update_interval(pairing=True)
+                        await self._pairing.open()
+                    else:
+                        await self._pairing.close()
+                except asyncio.CancelledError:
+                    # A cancelled reply cannot tell us whether BlueZ registered the advertisement.
+                    # Closing the Session's bus revokes even registrations we never got to record.
+                    self._end_session()
+                    self._status = OFF
+                    self._tasks.spawn(self._changed())
+                    raise
         return self.snapshot()
 
     async def disconnect_host(self, address):
@@ -288,6 +296,7 @@ class ControllerMode:
         except asyncio.CancelledError:
             self._end_session()
             self._status = OFF
+            self._tasks.spawn(self._changed())
             raise
         except errors.ControllerModeError as e:
             self._record_error(e)
@@ -357,6 +366,10 @@ class ControllerMode:
         try:
             await self._set_status(STOPPING)
             await asyncio.wait_for(peripheral.stop(), self._stop_timeout)
+        except asyncio.CancelledError:
+            # Publish after synchronous cleanup without delaying cancellation on Decky's socket.
+            self._tasks.spawn(self._changed())
+            raise
         except Exception as e:
             log.warning("Controller Mode teardown did not finish cleanly: %r", e)
         finally:

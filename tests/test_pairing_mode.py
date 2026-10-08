@@ -16,6 +16,33 @@ GAMEPAD_APPEARANCE = 0x03C4
 
 
 class EnteringPairingMode(PluginTestCase):
+    async def test_cancelled_advertisement_registration_closes_the_session_and_pairing_window(self):
+        from deckpad import bluez
+
+        await self.plugin.set_controller_mode(True)
+        entered = asyncio.Event()
+        register = bluez.register_advertisement
+
+        async def reply_interrupted(*args):
+            await register(*args)
+            entered.set()
+            await asyncio.Future()
+
+        with mock.patch.object(bluez, "register_advertisement", side_effect=reply_interrupted):
+            task = asyncio.create_task(self.plugin.set_pairing_mode(True))
+            await entered.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        state = await self.state()
+        self.assertEqual(state["status"], "off")
+        self.assertEqual(state["pairing"]["status"], "closed")
+        self.assertIsNone(state["pairing"]["seconds_left"])
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+        self.assertEqual(self.decky.events[-1][1]["status"], "off")
+        await self.plugin.set_controller_mode(True)
+        self.assertEqual((await self.plugin.set_pairing_mode(True))["pairing"]["status"], "discoverable")
+
     async def test_controller_mode_alone_does_not_make_the_deck_discoverable(self):
         state = await self.plugin.set_controller_mode(True)
 

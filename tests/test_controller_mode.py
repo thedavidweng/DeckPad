@@ -185,6 +185,7 @@ class InterruptedLifecycle(PluginTestCase):
                 await task
         self.assertEqual((await self.state())["status"], "off")
         self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+        self.assertEqual(self.decky.events[-1][1]["status"], "off")
         self.assertTrue((await self.plugin.set_controller_mode(True))["enabled"])
 
     async def test_failure_after_input_starts_releases_input_and_registrations(self):
