@@ -297,6 +297,40 @@ retries remain unexplained; repeatable prompt reconnection is not claimed as pas
 Additional artifacts: `/tmp/deckpad-mac-clean-reconnect-log.txt`,
 `/tmp/deckpad-reconnect-disagreement.json` and `/tmp/deckpad-reconnect-confirm.btsnoop`.
 
+### Retained-bond automatic reconnect comparison — 2026-10-08
+
+Three rewritten Controller Mode OFF/ON cycles retain the Mac pairing and keep Pairing Mode closed.
+No Mac Connect operation is performed in these trials. HCI timestamps measure from
+advertising enable to successful LE connection, followed by the Mac writing `0100` to HID CCCD
+`020b` in every trial:
+
+| Package / trial | Advertising to LE connection | Independent Mac observation |
+| --- | --- | --- |
+| Rewrite 1 | 45.055 seconds | Bluetooth Settings eventually shows Connected; the 40-second native observer ends before connection |
+| Rewrite 2 | 1.299 seconds | Native GameController observer identifies steamdeck / Xbox One |
+| Rewrite 3 | 19.371 seconds | Native GameController observer identifies steamdeck / Xbox One |
+| Unmodified v0.0.1, retained bond | 63.037 seconds | Native GameController observer identifies steamdeck / Xbox One |
+
+Before installing the original for this comparison, all 80 release files match its retained directory
+byte for byte. The original also produces Mac connection-failed/retry logs before connecting.
+Its first HCI advertising-parameter, advertising-data and scan-response commands (`2036`, `2037`,
+`2038`) exactly match the rewrite's reconnect commands, including non-discoverable flags `04`.
+This establishes delayed automatic reconnection in both packages in the current environment;
+it does not identify the retry cause or explain every earlier manual Connect failure.
+These trials do not verify physical input and do not substitute for input acceptance.
+
+OFF diagnostics before both package swaps confirm inactive DeviceID override, original adapter
+interval 24–40, no advertisement, retained pairing and no error. The rewrite is restored using the
+official Loader reload; all 81 deployed files again match the packaged rewrite byte for byte.
+Controller Mode is re-enabled with Pairing Mode closed. No product code or persistent Bluetooth
+configuration changes are introduced by the comparison.
+
+Artifacts: `/tmp/deckpad-three-reconnects.btsnoop` covers rewrite trials 1 and 2;
+`/tmp/deckpad-reconnect-trial3.btsnoop` covers trial 3 until the intentional OFF at 127.353 seconds,
+then also captures the original's startup. `/tmp/deckpad-v001-retained-bond-reconnect.btsnoop`
+independently covers the original trial. Per-trial Mac logs and diagnostic reports are under
+`/tmp/deckpad-reconnect-trial*` and `/tmp/deckpad-v001-retained-bond-reconnect-*`.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
