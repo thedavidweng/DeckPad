@@ -136,6 +136,22 @@ process report OFF, no error, BlueZ's own identity and interval 24–40. The Hos
 setting survive. TypeScript typecheck and all 14 frontend tests passed again. The temporary build VM
 was removed and the original Docker context restored. No push or Store submission was performed.
 
+### Fresh Mac pairing attempt
+
+After the user's confirmation, removed only `steamdeck` from the Mac's Bluetooth settings and used
+DeckPad's `forget_host` for that Mac. The Mac's other saved devices remained listed; DeckPad's Host
+list and BlueZ's device list were empty afterwards. Started Controller Mode and Pairing Mode without
+error. The Mac discovered `steamdeck` under Nearby Devices, but no HID subscription or completed
+pairing has been observed yet.
+
+The native UI tool can read the Bluetooth window and invoke accessibility buttons, but mouse and
+scroll operations repeatedly returned `noWindowsAvailable`. Considered rebinding the app, raising
+the window, direct coordinate interaction and a manual Connect action. Rebinding/raising did not
+restore mouse control; the user was asked to click Connect as described in
+[Apple's Bluetooth instructions](https://support.apple.com/en-nz/guide/mac-help/blth1004/mac).
+This is a UI-tool blocker, not evidence that fresh Bluetooth pairing failed. Started a Deck-side
+`btmon` capture at `/tmp/deckpad-mac-fresh-pairing.btsnoop` for the actual connection attempt.
+
 ### Real pairing-window timeout — incomplete reconnect gate
 
 On the current complete archive, opened Pairing Mode and allowed the actual 180-second deadline to
