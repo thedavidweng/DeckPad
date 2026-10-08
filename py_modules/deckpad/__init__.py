@@ -7,7 +7,9 @@ def _provide_xml_etree():
     # py_modules/_stdlib (PSF license) by extending the frozen `xml` package's search path.
     try:
         import xml.etree  # noqa: F401
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as e:
+        if e.name != "xml.etree":
+            raise
         import xml
 
         xml.__path__.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "_stdlib", "xml"))

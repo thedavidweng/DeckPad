@@ -1,6 +1,7 @@
 """The backend must load inside Decky Loader's frozen Python, which ships `xml` without `xml.etree`."""
 
 import os
+import builtins
 import shutil
 import subprocess
 import sys
@@ -8,11 +9,30 @@ import tempfile
 import textwrap
 import unittest
 import xml
+from unittest.mock import patch
+from deckpad import _provide_xml_etree
 
 from tests.support.fake_decky import REPO_ROOT
 
 
 class LoadingInDeckysInterpreter(unittest.TestCase):
+    def test_unrelated_missing_modules_are_not_hidden_by_the_xml_fallback(self):
+        original = builtins.__import__
+
+        def missing(name, *args, **kwargs):
+            if name == "xml.etree":
+                raise ModuleNotFoundError("broken dependency", name="broken_dependency")
+            return original(name, *args, **kwargs)
+
+        search_path = list(xml.__path__)
+        try:
+            with patch("builtins.__import__", side_effect=missing):
+                with self.assertRaises(ModuleNotFoundError):
+                    _provide_xml_etree()
+            self.assertEqual(xml.__path__, search_path)
+        finally:
+            xml.__path__[:] = search_path
+
     def test_the_backend_loads_without_xml_etree(self):
         with tempfile.TemporaryDirectory() as tmp:
             stripped = os.path.join(tmp, "xml")
