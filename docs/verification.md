@@ -223,6 +223,30 @@ protocol fallback, adapter alias or permanent Bluetooth setting was changed for 
 The cause of the earlier failure and repeatable Forget/re-pair reliability remain open; complete
 button/axis mapping and the remaining hardware gates are not established by this comparison.
 
+### Mac control capture — partial input acceptance, 2026-10-08
+
+A temporary native Swift observer using Apple's GameController framework identifies the connected
+`steamdeck` as category `Xbox One`. Background event delivery is explicitly enabled through
+`GCController.shouldMonitorBackgroundEvents`; this is an observer-process setting, not a system
+permission or plugin change. The completed four-minute capture records 193 input callbacks:
+A/B/X/Y, LB/RB, View/Menu, all eight D-pad directions and both triggers reaching 1.0 and releasing
+to 0.0. Recorded button presses release, and the last callback has no pressed button, neutral D-pad,
+neutral sticks and released triggers. Artifact: `/tmp/deckpad-mac-input-v2.log` on the Mac.
+
+Independent Deck HCI input notifications contain hats 0–8 and both trigger ranges 0–1023. Captured
+stick values remain near center rather than demonstrating full travel. L3/R3, Guide and Share are
+not present in this capture's button bytes. Those controls therefore remain unverified, with a
+separate manual capture requested; their absence is not yet evidence of a mapping bug.
+Artifact: `/tmp/deckpad-controls-acceptance.btsnoop`. The native observer and capture are temporary,
+bounded diagnostic processes, not distributed dependencies or background services.
+
+A real Steam CEF screenshot `/tmp/deckpad-controller-screen-mac.png` verifies the rendered
+Controller Screen, connected Mac name, controller outline, trigger bars and Close control.
+`SteamUIStore.BHomeAndQuickAccessButtonsEnabled()` returns false while that screen is open.
+This proves the menu switch's current state, not that physical presses leave the Steam background
+unchanged; that observation still requires the user's response. No automatic test substitutes
+for full control mapping, focus isolation or Quit Combo acceptance.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
