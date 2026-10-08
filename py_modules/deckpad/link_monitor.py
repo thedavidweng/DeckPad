@@ -54,25 +54,32 @@ class LinkMonitor:
         self._index = index
         self._open_socket = open_socket
         self._sock = None
+        self._loop = None
         # Connection handle -> interval in seconds, for links where the Deck is the peripheral.
         self._links = {}
 
     def start(self):
+        if self._sock is not None:
+            return
         try:
             self._sock = self._open_socket(self._index)
+            self._sock.setblocking(False)
+            loop = asyncio.get_running_loop()
+            loop.add_reader(self._sock.fileno(), self._readable)
+            self._loop = loop
         except Exception as e:
             log.info("Cannot watch connection intervals, pacing conservatively: %r", e)
-            return
-        self._sock.setblocking(False)
-        asyncio.get_running_loop().add_reader(self._sock.fileno(), self._readable)
+            self.stop()
 
     def stop(self):
         """Synchronous, so it can run during plugin unload."""
         if self._sock is not None:
-            try:
-                asyncio.get_running_loop().remove_reader(self._sock.fileno())
-            except RuntimeError:
-                pass
+            if self._loop is not None:
+                try:
+                    self._loop.remove_reader(self._sock.fileno())
+                except RuntimeError:
+                    pass
+                self._loop = None
             self._sock.close()
             self._sock = None
         self._links.clear()
@@ -97,41 +104,48 @@ class LinkMonitor:
                 self.stop()
                 return
             if not packet:
+                self.stop()
                 return
-            try:
-                self._handle(packet)
-            except struct.error:
-                pass
+            self._handle(packet)
 
     def _handle(self, packet):
-        if len(packet) < 3 or packet[0] != _HCI_EVENT_PKT:
+        if len(packet) < 3 or packet[0] != _HCI_EVENT_PKT or packet[2] != len(packet) - 3:
             return
         event, params = packet[1], packet[3:]
         if event == _EVT_DISCONNECT_COMPLETE:
+            if len(params) != 4:
+                return
             status, handle = struct.unpack_from("<BH", params)
-            if status == 0:
-                self._forget(handle & 0x0FFF)
+            if status == 0 and handle <= 0x0EFF:
+                self._forget(handle)
         elif event == _EVT_LE_META and params:
             self._handle_le(params[0], params[1:])
 
     def _handle_le(self, subevent, params):
+        length = {
+            _LE_CONNECTION_COMPLETE: 18,
+            _LE_ENHANCED_CONNECTION_COMPLETE: 30,
+            _LE_ENHANCED_CONNECTION_COMPLETE_V2: 33,
+            _LE_CONNECTION_UPDATE_COMPLETE: 9,
+        }.get(subevent)
+        if len(params) != length:
+            return
         if subevent in (_LE_ENHANCED_CONNECTION_COMPLETE, _LE_ENHANCED_CONNECTION_COMPLETE_V2):
             status, handle, role = struct.unpack_from("<BHB", params)
             (interval,) = struct.unpack_from("<H", params, 23)
-            self._connected(status, handle & 0x0FFF, role, interval)
+            self._connected(status, handle, role, interval)
         elif subevent == _LE_CONNECTION_COMPLETE:
             status, handle, role = struct.unpack_from("<BHB", params)
             (interval,) = struct.unpack_from("<H", params, 11)
-            self._connected(status, handle & 0x0FFF, role, interval)
+            self._connected(status, handle, role, interval)
         elif subevent == _LE_CONNECTION_UPDATE_COMPLETE:
             status, handle, interval = struct.unpack_from("<BHH", params)
-            handle &= 0x0FFF
-            if status == 0 and handle in self._links:
+            if status == 0 and handle in self._links and 6 <= interval <= 3200:
                 self._links[handle] = interval * _UNIT
                 log.info("Host link %d now at a %.2f ms connection interval", handle, self._links[handle] * 1000)
 
     def _connected(self, status, handle, role, interval):
-        if status != 0 or role != _ROLE_PERIPHERAL:
+        if status != 0 or role != _ROLE_PERIPHERAL or handle > 0x0EFF or not 6 <= interval <= 3200:
             return
         self._links[handle] = interval * _UNIT
         log.info("Host link %d connected at a %.2f ms connection interval", handle, self._links[handle] * 1000)
