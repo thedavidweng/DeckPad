@@ -12,7 +12,7 @@ from tests.support.deck_state import deck_state_report
 from tests.support.fake_bluez import HOST_ADDRESS
 from tests.support.plugin_case import PluginTestCase
 from tests.test_input_pipeline import A_HELD, InputCase
-from tests.test_pairing_mode import settled
+from tests.support.wait import settled
 
 
 class Diagnostics(PluginTestCase):

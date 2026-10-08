@@ -10,8 +10,8 @@ from deckpad import controller_mode
 
 from tests.support.fake_bluez import HOST_ADDRESS, STEAM_AGENT
 from tests.support.plugin_case import PluginTestCase
-from tests.test_connections import when
-from tests.test_pairing_mode import settled
+from tests.support.wait import when
+from tests.support.wait import settled
 
 
 class FailureCase(PluginTestCase):

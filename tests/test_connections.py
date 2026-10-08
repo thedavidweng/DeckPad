@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from tests.support.fake_bluez import HOST_ADDRESS, HOST_NAME
 from tests.support.plugin_case import PluginTestCase
-from tests.test_pairing_mode import eventually, eventually_async, settled
+from tests.support.wait import eventually, settled, when
 
 
 def deckpad_work_in_progress():
@@ -349,15 +349,6 @@ class WithSeveralPairedHosts(ConnectionsCase):
         self.assertTrue(self.bluez.devices[second].connected)
 
 
-async def when(plugin, predicate, timeout=2.0):
-    """The backend state once `predicate` holds for it, or the last state seen at the timeout."""
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while True:
-        state = await plugin.get_state()
-        if predicate(state) or loop.time() > deadline:
-            return state
-        await asyncio.sleep(0.01)
 
 
 if __name__ == "__main__":

@@ -14,18 +14,10 @@ from deckpad.link_monitor import FALLBACK_REPORT_INTERVAL
 from tests.support.deck_state import deck_state_report
 from tests.support.fake_controller import FakeController
 from tests.support.plugin_case import PluginTestCase
-from tests.test_connections import when
+from tests.support.wait import eventually, when
 
 AT_REST = bytes.fromhex("00800080008000800000000000000000")
 A_HELD = bytes.fromhex("00800080008000800000000000010000")
-
-
-async def eventually(condition, timeout=2.0):
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while not condition() and loop.time() < deadline:
-        await asyncio.sleep(0.01)
-    return condition()
 
 
 class InputCase(PluginTestCase):

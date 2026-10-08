@@ -23,15 +23,6 @@ class FakeDecky(types.ModuleType):
     async def emit(self, event, *args):
         self.events.append((event, *args))
 
-    def migrate_logs(self, *a):
-        return {}
-
-    def migrate_settings(self, *a):
-        return {}
-
-    def migrate_runtime(self, *a):
-        return {}
-
     def cleanup(self):
         self._tmp.cleanup()
 

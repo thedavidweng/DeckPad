@@ -9,6 +9,7 @@ from deckpad import pairing
 
 from tests.support.fake_bluez import HOST_ADDRESS, HOST_NAME
 from tests.support.plugin_case import PluginTestCase
+from tests.support.wait import eventually, settled, when
 
 HID_SERVICE = "00001812-0000-1000-8000-00805f9b34fb"
 GAMEPAD_APPEARANCE = 0x03C4
@@ -90,7 +91,8 @@ class FirstPairing(PluginTestCase):
 
         self.bluez.devices[device].update(alias=HOST_NAME)
 
-        self.assertTrue(await eventually_async(self.plugin, lambda s: s["pairing"]["host"]["name"] == HOST_NAME))
+        state = await when(self.plugin, lambda s: s["pairing"]["host"]["name"] == HOST_NAME)
+        self.assertEqual(state["pairing"]["host"]["name"], HOST_NAME)
 
     async def test_the_deck_stops_advertising_once_a_host_connects(self):
         await self.bluez.host_connects()
@@ -382,31 +384,6 @@ class APairedHostInALaterSession(PluginTestCase):
         self.assertTrue(await eventually(lambda: self.bluez.disconnect_requests == [device]))
 
 
-async def settled(plugin, status, timeout=2.0):
-    """The backend state once pairing mode reaches `status` (Bluetooth events arrive asynchronously)."""
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while True:
-        state = await plugin.get_state()
-        if state["pairing"]["status"] == status or loop.time() > deadline:
-            return state
-        await asyncio.sleep(0.01)
-
-
-async def eventually_async(plugin, predicate, timeout=2.0):
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while not predicate(await plugin.get_state()) and loop.time() < deadline:
-        await asyncio.sleep(0.01)
-    return predicate(await plugin.get_state())
-
-
-async def eventually(predicate, timeout=2.0):
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while not predicate() and loop.time() < deadline:
-        await asyncio.sleep(0.01)
-    return predicate()
 
 
 if __name__ == "__main__":

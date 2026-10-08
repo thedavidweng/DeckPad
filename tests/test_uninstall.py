@@ -8,7 +8,8 @@ import unittest
 
 from tests.support.fake_bluez import HOST_ADDRESS
 from tests.support.plugin_case import PluginTestCase
-from tests.test_connections import ConnectionsCase, when
+from tests.test_connections import ConnectionsCase
+from tests.support.wait import when
 
 OTHER_HOST = "AA:BB:CC:DD:EE:01"
 HEADPHONES = "4C:87:5D:98:4A:A4"
