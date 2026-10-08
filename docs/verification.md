@@ -3,7 +3,7 @@
 What has been checked on real hardware, and what is still open, so a decision record can point at one
 place.
 
-## Current reliability audit — 2026-10-07
+## Current reliability audit — updated 2026-10-08
 
 Every code change was committed independently after relevant tests passed. No commit was pushed.
 
@@ -17,8 +17,8 @@ Every code change was committed independently after relevant tests passed. No co
 | Actual official Decky CLI 0.0.7 ZIP | Final revision: 81 files verified, including backend bytes, API/root metadata and vendored licenses |
 | GitHub Actions | Workflow configured for Python 3.11/3.12, frontend checks, static checks and official packaging; not run remotely because nothing was pushed |
 | Decky embedded Python 3.11.7 | Current archive loaded on LCD, Decky 3.2.10; dbus-fast 5.2.0, real GATT registration, hidraw input reader and MGMT calls succeeded |
-| Steam Deck LCD: startup, pairing, every Host-side control, disconnect/reconnect, exit, uninstall | Startup and backend cleanup/recovery checks completed below; fresh HID pairing, input, UI exit and uninstall remain pending |
-| Gaming Mode QAM, focus capture, Steam/QAM buttons, all menu restoration paths, diagnostics copy | Fresh run pending |
+| Steam Deck LCD: startup, pairing, controls, reconnect, exit, uninstall | Fresh Mac pairing, core buttons, axes, triggers, L3/R3/Share, retained-bond reconnection and Quit Combo exit verified below; Guide encoded on transport but no Mac application callback; repeated manual Connect failures, active-input recovery and revised uninstall remain open |
+| Gaming Mode QAM, focus capture, Steam/QAM buttons, all menu restoration paths, diagnostics copy | Real panel and Controller Screen inspected; user confirms focus behavior and Quit Combo menu restoration; copied diagnostics match saved contents; Close, Quit Combo disabled, reload/unload and chord routes remain open |
 | Official Plugin Store testing and review | Not submitted or approved; third-party Stable/Beta reports and code-provenance eligibility remain open |
 
 Compared current stable [Decky v3.2.10 with v3.2.9](https://github.com/SteamDeckHomebrew/decky-loader/compare/v3.2.9...v3.2.10): the plugin lifecycle/API code did not change. The PyInstaller spec adds unrelated standard-library imports, not `xml.etree`. The fresh embedded-runtime check below establishes backend startup on 3.2.10; it does not establish every hardware acceptance gate.
@@ -480,7 +480,7 @@ copy button in Troubleshooting, and the open unknowns below.
 | Host | Status |
 |---|---|
 | Linux with BlueZ (Arch Linux, BlueZ 5.87) | Tested: pairs, reconnects, receives input as an Xbox controller |
-| macOS 27.0.1 (same Mac, rewritten package) | Fresh pairing and sustained HID notifications verified; Xbox BLE identity and Apple game-controller driver verified; full mapping and repeatable reconnect/Forget gates open |
+| macOS 27.0.1 (same Mac, rewritten package) | Fresh pairing, native core-button/axis/trigger/L3/R3/Share input, Xbox BLE identity and driver verified; three automatic retained-bond reconnects establish HID subscriptions, with variable latency also observed in original v0.0.1; Guide application callback, repeated manual Connect and Forget/re-pair reliability remain open |
 | Windows 10/11, iOS/iPadOS, Android, ChromeOS | Untested |
 | Game consoles, smart TVs | Untested |
 | Steam Deck OLED (as the controller) | Untested |
