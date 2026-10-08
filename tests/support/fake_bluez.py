@@ -361,6 +361,9 @@ class FakeBluez:
         self.agents.clear()
         self.applications.clear()
         self.advertisements.clear()
+        self.handles.clear()
+        self._ranges.clear()
+        self.last_handle = CORE_LAST_HANDLE
         self.default_agents = [STEAM_AGENT]
         self.devices = {
             path: _Device(self, path, d.address, d.alias, paired=d.paired) for path, d in self.devices.items() if d.paired

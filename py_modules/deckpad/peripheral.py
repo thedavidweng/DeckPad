@@ -131,7 +131,8 @@ class Peripheral:
 
     async def _start(self):
         try:
-            self._bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+            self._bus = MessageBus(bus_type=BusType.SYSTEM)
+            await asyncio.wait_for(self._bus.connect(), bluez.CALL_TIMEOUT)
         except Exception as e:
             raise errors.bluetooth_unavailable(repr(e)) from e
 
@@ -158,15 +159,7 @@ class Peripheral:
             app.export(bus)
             self._gamepad_input = app.gamepad_input
             adapter_path = self._adapter_path
-            try:
-                await bluez.register_application(bus, adapter_path, APP_PATH)
-            except bluez.BluezError as e:
-                if e.service_unavailable:
-                    raise
-                # Another BlueZ client already holds those handles.
-                log.warning("Could not register at DeckPad's fixed GATT handles (%s); letting BlueZ pick them", e)
-                app.let_bluez_pick_handles()
-                await bluez.register_application(bus, adapter_path, APP_PATH)
+            await bluez.register_application(bus, adapter_path, APP_PATH)
             self._undo.append(
                 ("unregister application", lambda: bluez.unregister_application(bus, adapter_path, APP_PATH))
             )
@@ -186,8 +179,7 @@ class Peripheral:
         self._device_id_override = device_id.override(pid, modalias, identity.DEVICE_ID)
 
     def _restore_device_id(self):
-        if self._device_id_override is not None:
-            self._device_id_override.restore()
+        if self._device_id_override is not None and self._device_id_override.restore():
             self._device_id_override = None
 
     @property
@@ -208,8 +200,10 @@ class Peripheral:
                 return
             await self._unregister_advertisement()
             self._advertisement.discoverable = discoverable
-            await bluez.register_advertisement(self._bus, self._adapter_path, ADVERTISEMENT_PATH)
-            self._advertising = True
+            bus = self._bus
+            await bluez.register_advertisement(bus, self._adapter_path, ADVERTISEMENT_PATH)
+            if self._bus is bus:
+                self._advertising = True
 
     async def stop_advertising(self):
         async with self._advertising_lock:
@@ -225,11 +219,12 @@ class Peripheral:
     async def _unregister_advertisement(self):
         if not self._advertising or self._bus is None:
             return
-        self._advertising = False
         try:
             await bluez.unregister_advertisement(self._bus, self._adapter_path, ADVERTISEMENT_PATH)
         except bluez.BluezError as e:
-            log.warning("Could not stop advertising: %s", e)
+            if e.name != "org.bluez.Error.DoesNotExist":
+                raise
+        self._advertising = False
 
     def send_gamepad_report(self, report):
         """Returns False if no host is listening. Hosts that poll with ReadValue get the latest value
@@ -264,21 +259,23 @@ class Peripheral:
         Connected hosts are disconnected first: if the application just disappears, the host keeps a
         stale link and does not rebuild its controller until that link drops.
         """
-        if self._bus is not None:
-            for path in self._connected_hosts():
+        try:
+            if self._bus is not None:
+                for path in self._connected_hosts():
+                    try:
+                        await bluez.disconnect_device(self._bus, path)
+                    except bluez.BluezError as e:
+                        log.warning("Could not disconnect %s: %s", path, e)
+                await self.stop_advertising()
+            self._restore_device_id()
+            while self._undo:
+                label, step = self._undo.pop()
                 try:
-                    await bluez.disconnect_device(self._bus, path)
-                except bluez.BluezError as e:
-                    log.warning("Could not disconnect %s: %s", path, e)
-            await self.stop_advertising()
-        self._restore_device_id()
-        while self._undo:
-            label, step = self._undo.pop()
-            try:
-                await step()
-            except Exception as e:
-                log.warning("Teardown step %r failed: %r", label, e)
-        self.close()
+                    await step()
+                except Exception as e:
+                    log.warning("Teardown step %r failed: %r", label, e)
+        finally:
+            self.close()
 
     def close(self):
         """Drop the bus connection immediately; BlueZ then releases anything still registered.

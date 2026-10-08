@@ -157,10 +157,6 @@ class Application:
         self.services.append(service)
         return service
 
-    def let_bluez_pick_handles(self):
-        for service in self.services:
-            service.handle = 0
-
     def _objects(self):
         for service in self.services:
             yield service
