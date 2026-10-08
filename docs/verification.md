@@ -10,7 +10,7 @@ Every code change was committed independently after relevant tests passed. No co
 | Check | Result |
 |---|---|
 | Full Python behavior suite, Linux Python 3.11.7 container | 325 tests passed |
-| Full Python behavior suite, Linux Python 3.12.3 (`orca`) | 327 tests passed, including the Disconnect write-result regressions |
+| Full Python behavior suite, Linux Python 3.12.3 (`orca`) | 334 tests passed, including Disconnect write-result and adapter-identity regressions |
 | Frontend behavior tests, local Node 24.21.0 | 14 tests passed |
 | TypeScript 7 typecheck and official Rollup preset build | Passed with frozen dependency installation |
 | Ruff 0.15.0 (`F`, `E9`), Python compilation, whitespace checks | Passed; D-Bus signature annotations suppress only their exact false-positive lines |
@@ -151,6 +151,50 @@ restore mouse control; the user was asked to click Connect as described in
 [Apple's Bluetooth instructions](https://support.apple.com/en-nz/guide/mac-help/blth1004/mac).
 This is a UI-tool blocker, not evidence that fresh Bluetooth pairing failed. Started a Deck-side
 `btmon` capture at `/tmp/deckpad-mac-fresh-pairing.btsnoop` for the actual connection attempt.
+
+The user subsequently clicked Connect, both before and after opening the DeckPad panel, and reported
+continuous spinning. macOS 27.0.1's Bluetooth log records two BLE connection requests, each canceled
+after about 31 seconds; it reports neither Classic nor LE paired for this device. The completed
+200-second Deck capture contains no Connection Complete, SMP or ATT exchange. This establishes a
+link-establishment failure, without identifying whether its cause is Host, radio or environment.
+
+The user found DeckPad through the Decky QAM list. A real Steam CEF screenshot of
+`QuickAccess_uid2` shows the DeckPad panel with Controller Mode ON, the live pairing countdown,
+Cancel Pairing and Quit Combo controls. This verifies the panel's basic rendering; focus, complete
+interaction, Controller Screen and clipboard acceptance remain open. A second capture from Session
+startup confirms connectable/scannable legacy `ADV_IND`, public address, all three advertising
+channels, HID UUID `1812`, Gamepad appearance and successful advertising enable. It still contains
+no completed connection. Artifacts: `/tmp/deckpad-mac-pairing-retry.btsnoop` and `.txt` on the Deck.
+
+Considered fresh bonds, reopening discovery, reducing interference/distance, resetting the Deck's
+Bluetooth service and comparison with another Host. Fresh bonds and reopened windows did not
+establish a link. Restarted only the Deck's Bluetooth service and reopened Pairing Mode; the resulting
+195-second `/tmp/deckpad-mac-after-bt-restart.btsnoop` capture also contains no Connection Complete,
+SMP or ATT exchange. No retry loop, protocol fallback or permanent system setting was added.
+
+### Adapter renumbering and interval recovery
+
+After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
+Realtek adapter as `hci1`. BlueZ and MGMT both report the same controller address previously recorded
+for `hci0`. DeckPad recovered to ON, but the old interval journal referenced index 0. Its restoration
+failed with `Incomplete MGMT command write`; the journal remained and blocked new interval requests.
+Independent MGMT readback on index 1 found the original range 24–40.
+
+Revision `90ffbf1` saves the controller's public address in the transaction journal and resolves its
+unique current index through MGMT Read Controller Index List/Read Controller Information. It checks
+identity around interval operations and preserves the journal for missing/ambiguous identities,
+external changes or failed readback. Index-only records are not guessed or automatically migrated.
+Two tests first failed against the old implementation: restoration after renumbering and refusal to
+restore a replacement controller at the old index. The revised 32 interval tests and full 334-test
+Linux Python 3.12 suite pass. The updated uninstall fixture's 10 tests, Ruff and whitespace checks pass.
+
+Deployed the revised interval module and reloaded the real embedded Decky process. Archived the old
+index-only journal at `/home/deck/DeckPad-interval-index-only-before-90ffbf1.json` only after checking
+controller identity and the original range independently. On `hci1`, the new code requests 12–16
+while ON, saves an address-based journal, and restores 24–40 while OFF. The journal is then absent;
+diagnostics report BlueZ's own identity. Current mode is OFF, with no paired Hosts. Automatic
+renumbering recovery of this new revision still needs a separate real reset test. The earlier ZIP
+does not include this fix and must be rebuilt before final package acceptance.
 
 ### Real pairing-window timeout — incomplete reconnect gate
 
