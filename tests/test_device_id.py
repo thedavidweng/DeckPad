@@ -5,6 +5,8 @@ import os
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
+from subprocess import CompletedProcess
 
 from deckpad import device_id
 
@@ -68,6 +70,9 @@ class OverridingBluetoothdsDeviceId(unittest.TestCase):
     def setUp(self):
         self.bluetoothd = FakeBluetoothd()
         self.addCleanup(self.bluetoothd.cleanup)
+        self.version = patch("subprocess.run", return_value=CompletedProcess([], 0, "5.83\n", ""))
+        self.version.start()
+        self.addCleanup(self.version.stop)
 
     def override(self, modalias=BLUEZ_MODALIAS):
         return device_id.override(self.bluetoothd.pid, modalias, XBOX, proc=self.bluetoothd.proc)
@@ -151,6 +156,67 @@ class OverridingBluetoothdsDeviceId(unittest.TestCase):
 
     def test_an_inaccessible_process_is_left_alone(self):
         self.assertIsNone(device_id.override(12345, BLUEZ_MODALIAS, XBOX, proc=self.bluetoothd.proc))
+
+    def test_an_unsupported_version_is_never_written(self):
+        with patch("subprocess.run", return_value=CompletedProcess([], 0, "5.84\n", "")):
+            self.assertIsNone(self.override())
+        self.assertEqual(self.bluetoothd.peek(), BLUEZ_PNP)
+
+    def test_an_incomplete_scan_cannot_prove_a_unique_match(self):
+        with open(os.path.join(self.bluetoothd.dir, "mem"), "r+b") as mem:
+            mem.truncate(OPTS + 8)
+        self.assertIsNone(self.override())
+        self.assertEqual(self.bluetoothd.peek(), BLUEZ_PNP)
+
+    def test_changed_bytes_between_scan_and_write_are_not_overwritten(self):
+        scan = device_id._scan
+
+        def changed(*args):
+            result = scan(*args)
+            self.bluetoothd.poke(OPTS, bytes(8))
+            return result
+
+        with patch("deckpad.device_id._scan", side_effect=changed):
+            self.assertIsNone(self.override())
+        self.assertEqual(self.bluetoothd.peek(), bytes(8))
+
+    def test_restart_between_scan_and_write_is_not_overwritten(self):
+        scan = device_id._scan
+
+        def restarted(*args):
+            result = scan(*args)
+            self.bluetoothd.set_start_time(99999)
+            return result
+
+        with patch("deckpad.device_id._scan", side_effect=restarted):
+            self.assertIsNone(self.override())
+        self.assertEqual(self.bluetoothd.peek(), BLUEZ_PNP)
+
+    def test_leftover_restore_does_not_report_success_on_permission_failure(self):
+        self.override()
+        real_open = open
+
+        def denied_write(path, mode="r", **kwargs):
+            if mode == "r+b":
+                raise PermissionError
+            return real_open(path, mode, **kwargs)
+
+        with patch("deckpad.device_id.open", side_effect=denied_write, create=True):
+            self.assertIs(device_id.restore_leftover(self.bluetoothd.pid, BLUEZ_MODALIAS, XBOX, proc=self.bluetoothd.proc), False)
+
+    def test_restore_reports_failure_when_the_write_does_not_stick(self):
+        override = self.override()
+        real_open = open
+
+        def ignored_write(path, mode="r", **kwargs):
+            mem = real_open(path, mode, **kwargs)
+            if mode == "r+b":
+                mem.write = lambda data: len(data)
+            return mem
+
+        with patch("deckpad.device_id.open", side_effect=ignored_write, create=True):
+            self.assertIs(override.restore(), False)
+        self.assertEqual(self.bluetoothd.peek(), XBOX_PNP)
 
     def test_the_identity_is_written_little_endian(self):
         self.override()

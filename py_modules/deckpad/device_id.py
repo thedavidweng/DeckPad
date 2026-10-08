@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import struct
+import subprocess
 
 log = logging.getLogger("deckpad.device_id")
 
@@ -46,16 +47,14 @@ class Override:
         try:
             if _Process.current(self._process.proc, self._process.pid) != self._process:
                 log.info("bluetoothd restarted; its DeviceID is already its own")
-                return
-            with open(self._process.mem_path, "r+b", buffering=0) as mem:
-                mem.seek(self._address)
-                if mem.read(len(self._replacement)) != self._replacement:
-                    return
-                mem.seek(self._address)
-                mem.write(self._original)
+                return False
+            if not self._process.replace(self._address, self._replacement, self._original):
+                return False
             log.info("Restored bluetoothd's DeviceID")
+            return True
         except OSError as e:
             log.warning("Could not restore bluetoothd's DeviceID: %r", e)
+            return False
 
 
 class _Process:
@@ -96,6 +95,24 @@ class _Process:
                     start, end = (int(x, 16) for x in fields[0].split("-"))
                     yield start, end
 
+    def replace(self, address, expected, replacement):
+        """The sole memory-write boundary: check process and bytes, then read back the write."""
+        with open(self.mem_path, "r+b", buffering=0) as mem:
+            if self.current(self.proc, self.pid) != self:
+                log.warning("DeviceID write refused: bluetoothd changed since the scan")
+                return False
+            mem.seek(address)
+            if mem.read(len(expected)) != expected:
+                log.warning("DeviceID write refused: bytes changed since the scan")
+                return False
+            mem.seek(address)
+            if mem.write(replacement) != len(replacement):
+                raise OSError("Incomplete DeviceID write")
+            mem.seek(address)
+            if mem.read(len(replacement)) != replacement:
+                raise OSError("DeviceID write verification failed")
+        return True
+
 
 def _scan(pid, modalias, replacement, proc):
     """Locate bluetoothd's DeviceID: (process, original, new, addresses of each), or None if not possible."""
@@ -109,12 +126,26 @@ def _scan(pid, modalias, replacement, proc):
     if process is None:
         log.info("Leaving bluetoothd's DeviceID alone: process %s is not accessible", pid)
         return None
+    try:
+        # Only 5.83's live btd_opts layout and DIS reader have been verified (ADR-0006).
+        version = subprocess.run(
+            [os.path.join(proc, str(pid), "exe"), "--version"],
+            capture_output=True, text=True, timeout=1, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        log.info("Leaving bluetoothd's DeviceID alone: cannot verify version: %r", e)
+        return None
+    if version != "5.83":
+        log.info("Leaving bluetoothd's DeviceID alone: unsupported BlueZ %s", version)
+        return None
     found = {original: [], new: []}
     try:
         with open(process.mem_path, "rb", buffering=0) as mem:
             for start, end in process.image_data_segments():
                 mem.seek(start)
                 data = mem.read(end - start)
+                if len(data) != end - start:
+                    raise OSError("Incomplete bluetoothd memory scan")
                 for pattern in found:
                     found[pattern].extend(start + m.start() for m in re.finditer(re.escape(pattern), data))
     except OSError as e:
@@ -135,9 +166,8 @@ def override(pid, modalias, replacement, proc="/proc"):
     if len(originals) == 1 and not replacements:
         address = originals[0]
         try:
-            with open(process.mem_path, "r+b", buffering=0) as mem:
-                mem.seek(address)
-                mem.write(new)
+            if not process.replace(address, original, new):
+                return None
         except OSError as e:
             log.info("Could not override bluetoothd's DeviceID: %r", e)
             return None
@@ -161,8 +191,7 @@ def restore_leftover(pid, modalias, replacement, proc="/proc"):
     process, original, new, originals, replacements = scan
     if len(replacements) != 1 or originals:
         return False
-    Override(process, replacements[0], original, new).restore()
-    return True
+    return Override(process, replacements[0], original, new).restore()
 
 
 def current(pid, modalias, replacement, proc="/proc"):
