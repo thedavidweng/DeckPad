@@ -3,9 +3,91 @@
 What has been checked on real hardware, and what is still open, so a decision record can point at one
 place.
 
-## Test setup
+## Current reliability audit — 2026-10-07
 
-"Verified on hardware" means this setup. Anything else is unverified.
+Every code change was committed independently after relevant tests passed. No commit was pushed.
+
+| Check | Result |
+|---|---|
+| Full Python behavior suite, Linux Python 3.11.7 container | 325 tests passed |
+| Full Python behavior suite, Linux Python 3.12.3 (`orca`) | 325 tests passed |
+| Frontend behavior tests, local Node 24.21.0 | 14 tests passed |
+| TypeScript 7 typecheck and official Rollup preset build | Passed with frozen dependency installation |
+| Ruff 0.15.0 (`F`, `E9`), Python compilation, whitespace checks | Passed; D-Bus signature annotations suppress only their exact false-positive lines |
+| Actual official Decky CLI 0.0.7 ZIP | Final revision: 81 files verified, including backend bytes, API/root metadata and vendored licenses |
+| GitHub Actions | Workflow configured for Python 3.11/3.12, frontend checks, static checks and official packaging; not run remotely because nothing was pushed |
+| Decky embedded Python 3.11.7 | Fresh run pending; ordinary CPython 3.11.7 and the stripped-XML subprocess test are not a substitute |
+| Steam Deck LCD: startup, pairing, every Host-side control, disconnect/reconnect, exit, uninstall | Fresh run pending |
+| Gaming Mode QAM, focus capture, Steam/QAM buttons, all menu restoration paths, diagnostics copy | Fresh run pending |
+| Official Plugin Store testing and review | Not submitted or approved; third-party Stable/Beta reports and code-provenance eligibility remain open |
+
+Compared current stable [Decky v3.2.10 with v3.2.9](https://github.com/SteamDeckHomebrew/decky-loader/compare/v3.2.9...v3.2.10): the plugin lifecycle/API code did not change. The PyInstaller spec adds unrelated standard-library imports, not `xml.etree`. This source review does not establish embedded-runtime compatibility; the hardware baseline remains v3.2.9.
+
+The current [Store addition template](https://github.com/SteamDeckHomebrew/decky-plugin-database/blob/main/.github/PULL_REQUEST_TEMPLATE/plugin_addition.md) requires developer verification on Stable and Beta, a third-party report on Stable or Beta for this Python/React architecture, and the declaration: “Generative AI was NOT used to write a majority of the code I am submitting.” This audit used AI assistance and cannot attest to the original code's provenance or the majority criterion. The maintainer must assess this honestly; no declaration or testing checkbox has been submitted. No messages, submission, release or push were made.
+
+The final gates remain open. Use the current audit results together with the historical evidence below;
+do not label this revision hardware-verified or Store-approved.
+
+## Module review
+
+Reviewed the final responsibilities, callers and cleanup paths. Protocol values and stable external
+interfaces stay explicit; no proxy framework, new daemon, compiled backend, state library or UI library
+was added. Each row records why the retained mechanism is necessary and the check that constrains it.
+
+| Module | Responsibility and simplest retained mechanism | Evidence / limit |
+|---|---|---|
+| `device_id.py` | One `/proc` write boundary, exact BlueZ version, unique image match, process/byte checks and verified restore/short-write rollback | Fault injection; actual daemon writes still need fresh LCD verification |
+| `connection_interval.py` | MGMT range transaction; synced original journal, write/readback, compare before restore, retain failed recovery | Malformed packet/TLV/status and recovery faults; no speculative overwrite |
+| `bluez.py` | One bounded message-call entry; remaining functions map directly to BlueZ methods | Bus timeout, loss, transport and cancellation tests; no introspection proxy |
+| `hci_socket.py` | One Linux socket/bind boundary with declared libc ABI and six-byte address | ABI/layout and close-on-failure tests; embedded interpreter still pending |
+| `link_monitor.py` | Own one socket/reader; parse only connection/update/disconnect events; forget pacing on loss | Exact lengths, handles, roles, intervals and EOF/error tests; 60 ms is the measured conservative rate, not a universal guarantee |
+| `bluetooth_watch.py` | Independent owned bus, notify loss once; recovery belongs to ControllerMode | Connect cancellation, disconnect and repeated signal tests |
+| `peripheral.py` | Session bus owns registrations; reverse cleanup plus connection close; fixed handles fail visibly | Registration/cancellation/teardown tests; public GATT reads cannot claim unrelated devices |
+| `gatt.py` | Only the services and value formats DeckPad uses; validate permissions, offsets, lengths, protocol and subscriptions | Actual D-Bus plus direct boundary tests; no generic GATT framework |
+| `agent.py` | Just Works candidate authorization; reject confirmation methods; derive allowed UUIDs from the actual application | Candidate identity, unrelated service and numeric/passkey rejection tests; Steam untrusted-device coexistence remains U10 |
+| `identity.py` | Static Xbox identity and HID bytes | Golden byte/layout tests; dynamic generation would add a second source of truth |
+| `advertisement.py` | Minimal LE advertisement; no Classic settings writes | GATT/advertisement lifecycle tests; session owns registration |
+| `controller_mode.py` | Only Session coordinator; common synchronous cleanup, one cancellable recovery task and one uninstall deadline | Repeated toggles, interrupted publication/start/pairing, recovery, unload and uninstall tests; cancellation publishes OFF through an owned task |
+| `connections.py` | Derive connections from Device1; persist ownership in PairedHosts; one intentional pause flag | Disconnect failure/cancellation, takeover, stale link and serialized advertising tests; uninstall worker does not rewrite files |
+| `pairing.py` | One candidate path, one timer; serialize advertisement policy with reconnect decisions | Timeout, competition, delayed reply, detach and cancellation tests |
+| `errors.py` | Stable codes, actionable messages, diagnostic detail | Existing operation failures plus settings failure/retry; no exception framework |
+| `tasks.py` | Owned task set; completion observes exceptions; synchronous repeated cancellation | Exception-observation and cancellation tests |
+| `deck_controls.py` | Read-only hidraw FD and its reader loop; locate again on reset, send neutral and re-arm Quit Combo | FIFO loss/reopen, pending report release and stop outside active-loop tests |
+| `gamepad_report.py` | Pure conversion and preview decoding using one button table and neutral report | Button/direction/axis/trigger boundaries and golden reports |
+| `report_pacer.py` | One pending latest report; reset recipient state on connection/subscription changes | Rate/dedup/reset tests and actual D-Bus resubscribe/reconnect tests |
+| `gamepad_preview.py` | One timer and publication task only while watched | Rate, duplicate subscription, cancellation and late publication tests |
+| `main.py` | Decky lifecycle/RPC/events and official per-plugin directories | Entry/unload/uninstall tests; pinned `py_modules` precedence retained; unused migration removed |
+| `hosts.py` | Canonical validated MAC/name ownership records; no persisted connection state | Bad records, reload and unrelated-device tests; failed save is logged while runtime ownership is retained after an irreversible bond change |
+| `settings.py`, `storage.py` | One strict boolean preference; synced atomic JSON replacement and temporary-file cleanup | Invalid types, failed writes, original-file preservation and actionable retry tests |
+| `diagnostics.py` | One read-only collection feeds summary/text; bounded bus calls and off-loop privileged reads; label addresses | No Bluetooth, denied access, thread ownership and redaction tests; inspect arbitrary external log text before sharing |
+| `__init__.py` | Add the vendored XML path only for missing `xml.etree` | Stripped interpreter subprocess and unrelated missing-module test; genuine embedded process pending |
+| `backend.ts` | Sole RPC/event boundary; live events beat initial query, stale callbacks ignored; preview watcher count owns subscription | Initial/event race, unmount and overlapping watcher tests |
+| `controller_screen.tsx` | Official router/navigation/focus; retain the exact private menu switch until restoration succeeds | Partial disable, changed store, failed restore, touch close and dismount tests; hardware menu/chord checks pending |
+| `index.tsx` | Render backend facts using official components; one shared request handler | All QAM action paths clear old transport errors; backend errors remain backend-owned |
+| `troubleshooting.tsx` | Local expanded state and latest diagnostics request; ignore results after hide/unmount | Overlapping queries and pending failure tests; both existing Clipboard paths retained until CEF measurement |
+| `gamepad_outline.tsx` | Steam artwork access stays inside this component, with the existing minimal preview if absent | Reviewed mappings; hardware artwork and Steam version compatibility pending |
+| Metadata, dependencies, build | ESM, API v1/root, official `deckyPlugin()`, pinned vendored pure Python with licenses | Metadata tests, frozen lockfile, official archive/content verification; root justified by `/proc` memory, MGMT and HCI access |
+| `tests/support` | Fake only external D-Bus/controller/MGMT interfaces; shared asynchronous wait functions | Removed migration stubs and duplicate waits; test scenarios reuse existing behavior fixtures |
+
+## Current compatibility boundaries
+
+| Environment / interface | Current status |
+|---|---|
+| BlueZ 5.83 DeviceID | Explicitly allowed after process/unique-byte checks; historical hardware evidence, new safety paths tested with faults |
+| Other BlueZ versions / unverified executable | No memory write; Hosts may read the daemon's generic identity; overall pairing/input compatibility unverified |
+| Fixed GATT Handle conflict | Startup error and Session rollback; no dynamic-handle retry based on ambiguous `Failed` |
+| Steam private menu switch absent | Menus remain enabled; official focus handling still applies |
+| Steam menu restoration throws | Ownership retained for another attempt; no claim that a broken Steam API can be forced to restore |
+| Steam private controller artwork absent | Existing simple preview remains available |
+| Missing `xml.etree` only | Vendored CPython 3.11.7 implementation; other import errors propagate |
+| Linux CPython / fake BlueZ | Automated development evidence; not a real radio or Decky shutdown deadline measurement |
+| Steam Deck OLED / other Host operating systems | Unverified |
+
+## Historical hardware baseline (before the reliability audit)
+
+The hardware results below describe the earlier implementation on this setup. They explain the
+protocol and private-interface decisions; they do **not** validate the revised implementation. The
+current LCD Deck is unavailable over SSH, so a fresh acceptance run is pending.
 
 | | Version |
 |---|---|
@@ -13,9 +95,9 @@ place.
 | Decky Loader | v3.2.9 (embedded Python 3.11.7) |
 | Host | Arch Linux laptop, BlueZ 5.87, paired with `bluetoothctl` |
 
-## What was verified, and how
+## Historical results
 
-| Area | Automated tests (fake BlueZ on a private D-Bus) | On the real Deck with the Linux Host |
+| Area | Existing automated coverage | Historical real Deck / Linux Host result |
 |---|---|---|
 | Controller Mode on/off, Decky reload and restart | Yes | Yes, including 16 and 10 on/off cycles; nothing left registered afterwards |
 | Pairing from the Host's normal Bluetooth flow | Yes | Yes; the Host builds a `045E:0B13` gamepad bound to the `hid-microsoft` driver |
@@ -33,7 +115,7 @@ place.
 Not yet checked on hardware: how the QAM panel looks (agents drove it through the plugin API only), the
 copy button in Troubleshooting, and the open unknowns below.
 
-## Hosts
+## Historical Host coverage
 
 | Host | Status |
 |---|---|
@@ -42,7 +124,7 @@ copy button in Troubleshooting, and the open unknowns below.
 | Game consoles, smart TVs | Untested |
 | Steam Deck OLED (as the controller) | Untested |
 
-## Open unknowns
+## Historical findings and open unknowns
 
 | # | Unknown | Status |
 |---|---|---|

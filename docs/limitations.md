@@ -28,5 +28,11 @@
   **Close Controller Screen**, or press the Steam button. A game running on the Deck still receives the
   controls, so do not run one while using the Deck as a controller.
 - **Not sent:** rear buttons, trackpads, gyro, and rumble from the Host.
+- **Compatibility boundaries.** The DeviceID memory override supports only verified BlueZ 5.83;
+  other versions leave the daemon's identity untouched. A fixed GATT Handle conflict fails startup
+  instead of retrying with moving handles. Steam menu switches and the controller outline use isolated
+  private Steam interfaces. Missing menu switches leave Steam's menus enabled; missing artwork uses
+  the existing simple preview. See [current verification status](verification.md) before treating a
+  SteamOS, Decky, or Host version as supported by this revision.
 - **Paired Hosts appear in Steam's Bluetooth settings**, because they are ordinary Bluetooth pairings.
   Removing one there also removes it from DeckPad.

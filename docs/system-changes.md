@@ -24,10 +24,14 @@ below; the rest of DeckPad would work without it.
   the interval, DeckPad refuses to overwrite it and keeps the recovery record. An unresolved record
   blocks a new interval request rather than replacing the original values.
 - **Pairing agent** ([ADR-0005](adr/0005-borrow-default-pairing-agent.md)). While Controller Mode is on,
-  DeckPad answers pairing requests that come from Hosts. It accepts them only while Pairing Mode is
-  open, and lets only Hosts paired through DeckPad use the Deck's Bluetooth services without asking.
-  Pairing you start from Steam's Bluetooth settings still goes through Steam as usual. When Controller
-  Mode turns off, DeckPad unregisters its agent and Bluetooth hands pairing requests back to Steam.
+  DeckPad accepts Just Works requests only for one candidate during Pairing Mode. Numeric comparison,
+  PIN, and passkey methods are rejected because DeckPad has no confirmation UI. Service authorization
+  accepts only DeckPad's GATT UUIDs, for that candidate or a recorded Host that BlueZ still reports as
+  paired. Reading public GATT values does not grant Host ownership. Trusted peripherals bypass this
+  authorization. A device Steam left untrusted may be refused while Controller Mode is on; this still
+  needs hardware verification. BlueZ routes application-initiated pairing to that application's agent,
+  and incoming requests to the default agent. When Controller Mode turns off, closing DeckPad's
+  connection unregisters its agent and returns default-agent handling to Steam.
 
 ## Files
 
@@ -51,3 +55,6 @@ within a few seconds during the uninstall, the pairings stay; remove them in Ste
 settings. Each Host still lists the Deck afterwards: remove it in the Host's Bluetooth settings.
 The interval recovery record is deleted only after verified restoration. If restoration fails,
 including lack of permission, it remains in Decky's runtime directory for diagnosis and a later retry.
+The uninstall worker shares one three-second deadline for pairing removal and leftover DeviceID
+restoration, and never rewrites the Host file being deleted. Synchronous interval restoration follows;
+the revised shutdown timing still needs measurement in Decky's embedded process.

@@ -11,6 +11,9 @@ This works because BlueZ 5.83 builds the DIS PnP ID value from those globals on 
 - Restore writes back only if the bytes are still DeckPad's, and only if the process is the same one (same PID, exe, and start time). A restarted bluetoothd already has its own values.
 - The executable reached through `/proc/<pid>/exe --version` must report exactly `5.83`; a custom `DeviceID` version in Modalias is not proof of the daemon version. The version command exits before daemon initialization ([BlueZ 5.83 main.c](https://github.com/bluez/bluez/blob/5.83/src/main.c)). Other versions are skipped until their layout and live DIS reader are verified.
 - All writes go through one checked boundary: reopen memory, recheck process identity and expected bytes, write, and read back. Restore and startup cleanup report success only after the original bytes are verified; permission failures and failed verification are logged as failures.
+- A short write is withdrawn only if the process is unchanged and the bytes exactly match the prefix
+  written by that operation plus the untouched original suffix. The rollback is read back too. A
+  changed process or external edit is never overwritten; a failed rollback remains a reported failure.
 - Restore is synchronous file I/O, so it also runs in `_unload`, where awaiting is impossible. If DeckPad is SIGKILLed with the override in place, the next backend start (`_main`) detects the single leftover copy and restores it. The next Controller Mode start would also adopt it.
 
 ## Considered Options

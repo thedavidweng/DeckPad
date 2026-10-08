@@ -8,6 +8,9 @@ adapter state, the DeviceID override, connection intervals, Paired Hosts, contro
 counters, recent errors, and recent log lines), shows a summary, and offers a copy button. The full
 report is also saved to `~/homebrew/logs/DeckPad/diagnostics.txt`. Please attach it when you
 [report an issue](https://github.com/thedavidweng/DeckPad/issues).
+Bluetooth addresses become consistent labels; the summary and Host list omit device names. Recent
+logs can contain arbitrary external error text, so check them for other identifying information before
+sharing the report.
 
 If the panel itself stops responding, reload DeckPad from Decky's settings.
 
@@ -42,4 +45,5 @@ If the panel itself stops responding, reload DeckPad from Decky's settings.
 | Could not forget *Host* | Bluetooth did not remove the pairing. Try again; if it keeps failing, remove *Host* in Steam's Bluetooth settings. | |
 | Could not disconnect *Host* | Try again, or turn Controller Mode off to disconnect every device. | |
 | Paired devices cannot reconnect | The Deck could not start advertising to them. Turn Controller Mode off and on, then try again. | |
+| Could not save Quit Combo | The previous setting is still in use. Check the Deck's free disk space and try again; if it keeps failing, collect diagnostics. | `settings_failed`; failed persistence does not change the active preference. |
 | No input from the Deck's controls | DeckPad cannot read the Deck's controls right now, so the connected device gets no input. DeckPad keeps trying; if this lasts, restart the Deck. | |
