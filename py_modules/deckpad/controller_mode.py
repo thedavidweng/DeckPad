@@ -453,7 +453,7 @@ async def _ignore(_):
 
 
 class _Listeners:
-    """A device may use the Deck's services while pairing mode is open, or if it is a paired host."""
+    """Only the pairing candidate and BlueZ-paired DeckPad Hosts may use DeckPad services."""
 
     def __init__(self, pairing, connections, paired_hosts):
         self._pairing = pairing
@@ -464,7 +464,8 @@ class _Listeners:
         return self._pairing.pairing_requested(device)
 
     def service_requested(self, device):
-        return self._pairing.accepting or device.get("Address") in self._paired_hosts
+        return (self._pairing.service_requested(device)
+                or bool(device.get("Paired") and device.get("Address") in self._paired_hosts))
 
     def device_changed(self, path, before, after):
         self._pairing.device_changed(path, before, after)

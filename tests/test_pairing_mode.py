@@ -101,6 +101,16 @@ class FirstPairing(PluginTestCase):
         self.assertEqual(state["pairing"]["host"]["name"], HOST_NAME)
         self.assertTrue(await eventually(lambda: self.bluez.advertisement is None))
 
+    async def test_a_second_device_cannot_pair_with_the_active_candidate(self):
+        first = await self.bluez.host_connects()
+        await settled(self.plugin, "pairing")
+        second = self.bluez.device("AA:BB:CC:DD:EE:FF", "Second Host").path
+
+        self.assertFalse(await self.bluez.host_pairs(second))
+        self.assertTrue(await self.bluez.host_pairs(first))
+        state = await settled(self.plugin, "paired")
+        self.assertEqual(state["pairing"]["host"]["address"], HOST_ADDRESS)
+
 
 class PairingOutsidePairingMode(PluginTestCase):
     async def test_pairing_is_refused_once_pairing_mode_ends(self):
@@ -152,6 +162,20 @@ class ServiceAuthorization(PluginTestCase):
         device = await self.bluez.host_connects()
 
         self.assertTrue(await self.bluez.device_uses_a_service(device))
+
+    async def test_open_pairing_does_not_authorize_an_unrelated_device(self):
+        await self.plugin.set_pairing_mode(True)
+        stranger = self.bluez.device("4C:87:5D:98:4A:A4", "Headphones")
+        stranger.update(paired=True)
+        self.assertFalse(await self.bluez.device_uses_a_service(stranger.path))
+
+    async def test_only_the_candidate_can_use_services_during_pairing(self):
+        await self.plugin.set_pairing_mode(True)
+        first = await self.bluez.host_connects()
+        await settled(self.plugin, "pairing")
+        second = self.bluez.device("AA:BB:CC:DD:EE:FF", "Second Host").path
+        self.assertTrue(await self.bluez.device_uses_a_service(first))
+        self.assertFalse(await self.bluez.device_uses_a_service(second))
 
 
 class PairingFailures(PluginTestCase):
