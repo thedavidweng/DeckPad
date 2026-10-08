@@ -17,28 +17,16 @@ INTERVAL_STATE_FILE = "connection_interval.json"
 DIAGNOSTICS_FILE = "diagnostics.txt"
 
 
-def _interval_state_path():
-    return os.path.join(decky.DECKY_PLUGIN_RUNTIME_DIR, INTERVAL_STATE_FILE)
-
-
-async def _publish(snapshot):
-    await decky.emit(STATE_EVENT, snapshot)
-
-
-async def _publish_gamepad_report(report):
-    await decky.emit(GAMEPAD_EVENT, report)
-
-
 class Plugin:
     def __init__(self):
         diagnostics.RECENT_LOG.attach(decky.logger)
         # Controller mode always starts off, so a reload or Decky restart returns Bluetooth to normal.
         self._controller_mode = controller_mode.ControllerMode(
-            on_change=_publish,
+            on_change=lambda snapshot: decky.emit(STATE_EVENT, snapshot),
             paired_hosts=PairedHosts(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")),
-            interval_state_path=_interval_state_path(),
+            interval_state_path=os.path.join(decky.DECKY_PLUGIN_RUNTIME_DIR, INTERVAL_STATE_FILE),
             settings=Settings(os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")),
-            on_gamepad_report=_publish_gamepad_report,
+            on_gamepad_report=lambda report: decky.emit(GAMEPAD_EVENT, report),
         )
 
     async def get_state(self):
