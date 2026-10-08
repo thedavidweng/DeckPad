@@ -15,10 +15,11 @@ class PairingAgent(ServiceInterface):
     `allow_service` are called with the device's object path and answer synchronously.
     """
 
-    def __init__(self, allow_pairing, allow_service):
+    def __init__(self, allow_pairing, allow_service, service_uuids):
         super().__init__("org.bluez.Agent1")
         self._allow_pairing = allow_pairing
         self._allow_service = allow_service
+        self._service_uuids = frozenset(service_uuids)
 
     def _authorize(self, device):
         if not self._allow_pairing(device):
@@ -42,12 +43,11 @@ class PairingAgent(ServiceInterface):
 
     @method()
     def DisplayPasskey(self, device: "o", passkey: "u", entered: "q"):
-        pass
+        raise DBusError(_REJECTED, "Passkey display is not supported")
 
     @method()
     def RequestConfirmation(self, device: "o", passkey: "u"):
-        # The Deck has no way to show the passkey to compare, so this is treated as Just Works.
-        self._authorize(device)
+        raise DBusError(_REJECTED, "Numeric comparison is not supported")
 
     @method()
     def RequestAuthorization(self, device: "o"):
@@ -57,7 +57,7 @@ class PairingAgent(ServiceInterface):
     def AuthorizeService(self, device: "o", uuid: "s"):
         # BlueZ asks this only for paired but untrusted devices, so the user's trusted peripherals never
         # get here.
-        if not self._allow_service(device):
+        if uuid.lower() not in self._service_uuids or not self._allow_service(device):
             raise DBusError(_REJECTED, "Not a Paired Host")
 
     @method()

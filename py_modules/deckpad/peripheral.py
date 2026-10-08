@@ -149,13 +149,13 @@ class Peripheral:
             await bluez.watch_devices(bus)
             self._load_devices(await bluez.managed_objects(bus))
 
-            agent = PairingAgent(self._allow_pairing, self._allow_service)
+            app = build_application(self._hosts.add)
+            agent = PairingAgent(self._allow_pairing, self._allow_service, [s.UUID for s in app.services])
             bus.export(AGENT_PATH, agent)
             await bluez.register_agent(bus, AGENT_PATH, CAPABILITY)
             self._undo.append(("unregister agent", lambda: bluez.unregister_agent(bus, AGENT_PATH)))
             await bluez.request_default_agent(bus, AGENT_PATH)
 
-            app = build_application(self._hosts.add)
             app.export(bus)
             self._gamepad_input = app.gamepad_input
             adapter_path = self._adapter_path
