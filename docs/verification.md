@@ -159,6 +159,15 @@ capture of this successful sequence is retained on the Deck at
 the original identity and interval; BlueZ ActiveInstances was zero. Fresh pairing and active Host
 input remain pending.
 
+Repeated the complete 180-second window with a 210-second HCI capture
+(`/tmp/deckpad-timeout-reproduction.btsnoop` on the Deck). This run contained no Connection Complete
+events and no failed MGMT/HCI statuses. At timeout the pairing error was `pairing_timed_out`, the
+reconnect advertisement was connectable with BlueZ ActiveInstances one, and interval 12–16 was
+restored. OFF then succeeded. This proves the no-new-link timeout path on this setup, not the prior
+failure that followed an observed peripheral link. The inconsistent kernel advertising state still
+needs a reproduction with the Host connection identified; no production change was justified by the
+successful run alone.
+
 ## Module review
 
 Reviewed the final responsibilities, callers and cleanup paths. Protocol values and stable external
