@@ -7,6 +7,7 @@ session's.
 """
 
 import logging
+import asyncio
 
 from dbus_fast import BusType, MessageType
 from dbus_fast.aio import MessageBus
@@ -27,14 +28,21 @@ class BluetoothWatch:
         self._bus = None
         self._adapter_path = None
         self._fired = False
+        self._disconnect_task = None
 
     async def start(self):
         """Raises ControllerModeError if the adapter is already gone."""
         try:
-            self._bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+            self._bus = MessageBus(bus_type=BusType.SYSTEM)
+            await asyncio.wait_for(self._bus.connect(), bluez.CALL_TIMEOUT)
+        except asyncio.CancelledError:
+            self.stop()
+            raise
         except Exception as e:
+            self.stop()
             raise errors.bluetooth_unavailable(repr(e)) from e
         try:
+            self._disconnect_task = asyncio.create_task(self._watch_disconnect(self._bus))
             self._bus.add_message_handler(self._on_message)
             for rule in (
                 "type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged',arg0='%s'" % bluez.SERVICE,
@@ -56,9 +64,20 @@ class BluetoothWatch:
     def stop(self):
         """Synchronous and safe to call more than once."""
         self._fired = True
+        if self._disconnect_task is not None:
+            self._disconnect_task.cancel()
+            self._disconnect_task = None
         if self._bus is not None:
             self._bus.disconnect()
             self._bus = None
+
+    async def _watch_disconnect(self, bus):
+        try:
+            await bus.wait_for_disconnect()
+        except Exception as e:
+            log.warning("Bluetooth watch bus disconnected: %r", e)
+        if self._bus is bus and not self._fired:
+            self._lost(SERVICE_STOPPED)
 
     def _on_message(self, msg):
         if msg.message_type != MessageType.SIGNAL or self._fired:
