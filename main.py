@@ -39,7 +39,7 @@ class Plugin:
         return await self._controller_mode.set_pairing_mode(bool(enabled))
 
     async def set_quit_combo(self, enabled):
-        return await self._controller_mode.set_quit_combo(bool(enabled))
+        return await self._controller_mode.set_quit_combo(enabled)
 
     async def watch_gamepad(self, enabled):
         self._controller_mode.watch_gamepad(bool(enabled))

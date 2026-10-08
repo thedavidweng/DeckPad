@@ -16,24 +16,22 @@ class Settings:
         if path and os.path.exists(path):
             try:
                 with open(path) as f:
-                    self.quit_combo = bool(json.load(f).get("quit_combo", True))
+                    value = json.load(f).get("quit_combo", True)
+                if type(value) is not bool:
+                    raise ValueError("quit_combo must be a boolean")
+                self.quit_combo = value
             except (OSError, ValueError, AttributeError) as e:
                 log.warning("Ignoring unreadable settings %s: %r", path, e)
 
     def set_quit_combo(self, enabled):
-        self.quit_combo = bool(enabled)
-        self._save()
+        if type(enabled) is not bool:
+            raise ValueError("quit_combo must be a boolean")
+        if self._path:
+            storage.save(self._path, {"quit_combo": enabled})
+        self.quit_combo = enabled
 
     def erase(self):
         """Back to the defaults, and delete the file."""
         self.quit_combo = True
         if self._path:
             storage.erase(self._path)
-
-    def _save(self):
-        if not self._path:
-            return
-        try:
-            storage.save(self._path, {"quit_combo": self.quit_combo})
-        except OSError as e:
-            log.warning("Could not save settings: %r", e)
