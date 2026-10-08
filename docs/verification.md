@@ -352,6 +352,17 @@ menu restoration from an open Controller Screen, frontend listener/route counts,
 input cleanup, forced-kill recovery or uninstall. The third reload returns Controller Mode to OFF.
 It is subsequently re-enabled for the pending manual Close acceptance; the Mac pairing remains.
 
+A subsequent read-only inspection of Loader's actual frontend state finds one DeckPad plugin
+instance, exactly one `/deckpad/controller` route (including nested route arrays), and an empty
+DeckPad event-listener map while Controller Screen is closed. The Steam menu switch is enabled.
+Artifact: `/tmp/deckpad-frontend-after-reloads.json`. This verifies the state after the reloads;
+it does not establish listener counts while the panel/screen is mounted or after every UI exit.
+
+The real `QuickAccess_uid2` clipboard context is secure, currently unfocused, exposes
+`navigator.clipboard`, grants `clipboard-write`, and reports legacy copy support. These read-only
+capability checks do not identify the write path used by the successful earlier copy or establish
+that either current copy path is redundant. No clipboard branch is removed on that evidence.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
