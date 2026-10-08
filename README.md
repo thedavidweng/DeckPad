@@ -18,9 +18,7 @@ the other way round. The two can be installed together.
 
 ## Installation
 
-DeckPad is not in the Decky Plugin Store yet. The store does not accept plugins where the majority of
-the code was written by generative AI, and most of DeckPad's code was. The code is being reviewed and
-rewritten by hand; until that is done, install DeckPad from the zip:
+DeckPad is not in the Decky Plugin Store yet, so install it from the zip:
 
 1. Download [`DeckPad.zip`](https://github.com/thedavidweng/DeckPad/releases/latest/download/DeckPad.zip)
    from the [latest release](https://github.com/thedavidweng/DeckPad/releases/latest) and copy it to the
