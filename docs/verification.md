@@ -135,6 +135,30 @@ process report OFF, no error, BlueZ's own identity and interval 24–40. The Hos
 setting survive. TypeScript typecheck and all 14 frontend tests passed again. The temporary build VM
 was removed and the original Docker context restored. No push or Store submission was performed.
 
+### Real pairing-window timeout — incomplete reconnect gate
+
+On the current complete archive, opened Pairing Mode and allowed the actual 180-second deadline to
+expire without accepting a new Host. Snapshots showed discoverable with 180, 109 and 46 seconds
+remaining, then failed with `pairing_timed_out`, no candidate and no remaining deadline. During the
+window BlueZ reported one LE advertisement, Classic Discoverable stayed false, and MGMT used the
+original interval 24–40. The existing Host record remained intact.
+
+At timeout the discoverable advertisement was withdrawn and interval 12–16 requested again, but
+registration of the reconnect advertisement failed. DeckPad exposed `reconnect_unavailable`, with
+BlueZ ActiveInstances zero. Bluetooth logs reported `Failed to add advertisement: Failed (0x03)`;
+kernel logs at the same time reported `Unexpected advertising set terminated event` and opcode
+`0x2039` failure `-38`. The link monitor had recorded a peripheral link during the window, while the
+persisted Host's Device1 fact remained disconnected. Its identity and relationship to the failed
+advertisement are not established.
+
+An immediate ON / open Pairing Mode / close Pairing Mode sequence subsequently succeeded without the
+registration error. This does not resolve the failed timeout/reconnect acceptance gate. No delay,
+retry, fallback registration or kernel change was added based on an unproven cause. A short btmon
+capture of this successful sequence is retained on the Deck at
+`/tmp/deckpad-advertising-failure.btsnoop`; it does not capture the initial failure. OFF then restored
+the original identity and interval; BlueZ ActiveInstances was zero. Fresh pairing and active Host
+input remain pending.
+
 ## Module review
 
 Reviewed the final responsibilities, callers and cleanup paths. Protocol values and stable external
