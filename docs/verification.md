@@ -280,10 +280,22 @@ of the existing copy helper's two write paths succeeded or prove its failure han
 
 The subsequent clean reconnection test starts Controller Mode without reopening Pairing Mode or
 deleting either pairing. The Mac establishes a subscribed HID link at 15 ms; diagnostics record
-2,554 delivered reports with no error and no active advertisement. A user confirmation and native
-Mac button callback are still required before this is recorded as a completed reconnect/input gate.
+2,554 delivered reports with no error and no active advertisement. The user initially reported
+that the Deck showed connected while Mac Bluetooth Settings did not. Mac logs independently record
+connection retries and later `Device ready`; a subsequent native accessibility inspection shows
+`steamdeck Connected - 100%`. The first Mac observer attaches an Xbox One controller but records
+no input callbacks before finishing, so the initial link alone does not prove application input.
 Artifacts: `/tmp/deckpad-mac-clean-reconnect.btsnoop`,
 `/tmp/deckpad-clean-reconnect-diagnostics.json` and `/tmp/deckpad-mac-reconnect-input.log`.
+
+A second native observer, `/tmp/deckpad-mac-reconnect-confirm.log`, subsequently records 242
+input callbacks at the inspection point: right-stick movement reaches 1.0 and the right trigger
+reaches 1.0 and releases to 0.0. Its last observed callback has neutral controls. This proves
+application input after this reconnection, independently of DeckPad's notification counter.
+A/B presses are not present in that observation. The initial UI disagreement and connection
+retries remain unexplained; repeatable prompt reconnection is not claimed as passed.
+Additional artifacts: `/tmp/deckpad-mac-clean-reconnect-log.txt`,
+`/tmp/deckpad-reconnect-disagreement.json` and `/tmp/deckpad-reconnect-confirm.btsnoop`.
 
 ### Adapter renumbering and interval recovery
 
