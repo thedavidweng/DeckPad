@@ -109,8 +109,7 @@ test('capturing consumes game controls and leaves Steam menu button events alone
   assert.equal(cancelled.length, 2);
 });
 
-test('dismount removes the route even when Steam refuses restoration', async () => {
-  const removed = [];
+async function plugin(overrides) {
   const context = createContext({ console });
   const source = await readFile(new URL('../../src/index.tsx', import.meta.url), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -119,11 +118,12 @@ test('dismount removes the route even when Steam refuses restoration', async () 
   ]));
   const bindings = {
     definePlugin: factory => factory,
-    routerHook: { addRoute() {}, removeRoute: route => removed.push(route) },
+    routerHook: { addRoute() {}, removeRoute() {} },
     CONTROLLER_SCREEN_ROUTE: '/deckpad/controller',
     restoreSteamMenus: () => { throw new Error('enable failed'); },
     jsx: () => null,
     jsxs: () => null,
+    ...overrides,
   };
   imports.set('react/jsx-runtime', ['jsx', 'jsxs', 'Fragment']);
   const compiled = ts.transpileModule(source, {
@@ -135,7 +135,57 @@ test('dismount removes the route even when Steam refuses restoration', async () 
     for (const key of imports.get(name)) this.setExport(key, bindings[key] ?? (() => null));
   }, { context }));
   await module.evaluate();
-  const plugin = module.namespace.default();
-  assert.throws(() => plugin.onDismount(), /enable failed/);
+  return module.namespace.default();
+}
+
+test('dismount removes the route even when Steam refuses restoration', async () => {
+  const removed = [];
+  const p = await plugin({
+    routerHook: { addRoute() {}, removeRoute: route => removed.push(route) },
+  });
+  assert.throws(() => p.onDismount(), /enable failed/);
   assert.deepEqual(removed, ['/deckpad/controller']);
+});
+
+
+test('every QAM action clears an old request error before sending a new request', async () => {
+  const values = [], calls = [];
+  const state = {
+    status: 'on', connection: 'paused', hosts: [], quit_combo: true,
+    pairing: { status: 'closed', seconds_left: null },
+  };
+  const jsx = (type, props) => ({ type, props });
+  const p = await plugin({
+    jsx, jsxs: jsx,
+    useControllerModeState: () => state,
+    useControllerScreenOpen: () => false,
+    useState: value => [value, next => values.push(next)],
+    hostNames: () => new Map(),
+    setControllerMode: async () => { throw new Error('offline'); },
+    allowReconnect: async () => calls.push('reconnect'),
+    setPairingMode: async () => calls.push('pair'),
+    setQuitCombo: async () => calls.push('setting'),
+  });
+  const content = p.content.type();
+  const nodes = [];
+  function visit(node) {
+    if (!node?.props) return;
+    nodes.push(node);
+    for (const child of [node.props.children].flat()) visit(child);
+  }
+  visit(content);
+  const toggle = nodes.find(node => node.props.label === 'Controller Mode');
+  await toggle.props.onChange(false);
+  assert.equal(values.at(-1), "Reload DeckPad from Decky's settings, then try again.");
+  const connection = nodes.find(node => node.props.state && node.props.screenOpen === false);
+  const pairing = nodes.find(node => node.props.pairing);
+  const quit = nodes.find(node => node.props.label === 'Quit Combo');
+  for (const component of [connection, pairing]) {
+    nodes.length = 0;
+    visit(component.type(component.props));
+    await nodes.find(node => node.props.onClick).props.onClick();
+  }
+  await quit.props.onChange(false);
+  assert.deepEqual(calls, ['reconnect', 'pair', 'setting']);
+  assert.deepEqual(values.slice(-3), [null, null, null]);
 });

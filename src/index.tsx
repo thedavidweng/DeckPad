@@ -68,22 +68,16 @@ function formatDuration(seconds: number): string {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function PairingRows({ pairing, onRequestError }: { pairing: PairingState; onRequestError: () => void }) {
+type Request = (operation: () => Promise<unknown>) => Promise<void>;
+
+function PairingRows({ pairing, request }: { pairing: PairingState; request: Request }) {
   const left = useCountdown(pairing.seconds_left);
   const deckName = pairing.name ?? "this Deck";
   const hostName = pairing.host?.name ?? "the other device";
 
-  const request = async (enabled: boolean) => {
-    try {
-      await setPairingMode(enabled);
-    } catch {
-      onRequestError();
-    }
-  };
-
   const action = (label: string, enabled: boolean, description?: string) => (
     <PanelSectionRow>
-      <ButtonItem layout="below" description={description} onClick={() => request(enabled)}>
+      <ButtonItem layout="below" description={description} onClick={() => request(() => setPairingMode(enabled))}>
         {label}
       </ButtonItem>
     </PanelSectionRow>
@@ -154,12 +148,12 @@ function ConnectionRows({
   state,
   names,
   screenOpen,
-  onRequestError,
+  request,
 }: {
   state: ControllerModeState;
   names: Map<string, string>;
   screenOpen: boolean;
-  onRequestError: () => void;
+  request: Request;
 }) {
   switch (state.connection) {
     case "connected":
@@ -202,7 +196,7 @@ function ConnectionRows({
             <Field label="Disconnected" description="Paired devices will not reconnect until you allow it." focusable />
           </PanelSectionRow>
           <PanelSectionRow>
-            <ButtonItem layout="below" onClick={() => allowReconnect().catch(onRequestError)}>
+            <ButtonItem layout="below" onClick={() => request(allowReconnect)}>
               Allow Reconnecting
             </ButtonItem>
           </PanelSectionRow>
@@ -216,11 +210,11 @@ function ConnectionRows({
 function PairedHostRows({
   state,
   names,
-  onRequestError,
+  request,
 }: {
   state: ControllerModeState;
   names: Map<string, string>;
-  onRequestError: () => void;
+  request: Request;
 }) {
   if (state.hosts.length === 0) return null;
 
@@ -235,7 +229,7 @@ function PairedHostRows({
         }
         strOKButtonText="Forget"
         bDestructiveWarning
-        onOK={() => forgetHost(host.address).catch(onRequestError)}
+        onOK={() => request(() => forgetHost(host.address))}
       />,
     );
   };
@@ -250,7 +244,7 @@ function PairedHostRows({
             focusable
           />
           {host.connected && (
-            <ButtonItem layout="below" onClick={() => disconnectHost(host.address).catch(onRequestError)}>
+            <ButtonItem layout="below" onClick={() => request(() => disconnectHost(host.address))}>
               Disconnect
             </ButtonItem>
           )}
@@ -281,15 +275,14 @@ function Content() {
   const busy = state.status === "starting" || state.status === "stopping";
   const checked = state.status === "on" || state.status === "starting" || state.status === "recovering";
 
-  const onChange = async (enabled: boolean) => {
+  const request: Request = async (operation) => {
     setRequestError(null);
     try {
-      await setControllerMode(enabled);
+      await operation();
     } catch {
       setRequestError(NOT_RESPONDING);
     }
   };
-  const onRequestError = () => setRequestError(NOT_RESPONDING);
   const names = hostNames(state.hosts);
 
   return (
@@ -301,7 +294,7 @@ function Content() {
             description={DESCRIPTIONS[state.status]}
             checked={checked}
             disabled={busy}
-            onChange={onChange}
+            onChange={(enabled) => request(() => setControllerMode(enabled))}
           />
         </PanelSectionRow>
         {screenOpen && (
@@ -312,9 +305,9 @@ function Content() {
           </PanelSectionRow>
         )}
         {state.status === "on" && (
-          <ConnectionRows state={state} names={names} screenOpen={screenOpen} onRequestError={onRequestError} />
+          <ConnectionRows state={state} names={names} screenOpen={screenOpen} request={request} />
         )}
-        {state.status === "on" && <PairingRows pairing={state.pairing} onRequestError={onRequestError} />}
+        {state.status === "on" && <PairingRows pairing={state.pairing} request={request} />}
         {state.status === "on" && state.controls && !state.controls.available && (
           <PanelSectionRow>
             <Field label="No input from the Deck's controls" description={state.controls.message} focusable />
@@ -332,7 +325,7 @@ function Content() {
         )}
       </PanelSection>
       {(state.status === "on" || state.status === "off") && (
-        <PairedHostRows state={state} names={names} onRequestError={onRequestError} />
+        <PairedHostRows state={state} names={names} request={request} />
       )}
       <PanelSection title="Settings">
         <PanelSectionRow>
@@ -340,7 +333,7 @@ function Content() {
             label="Quit Combo"
             description="Hold Menu + View + L1 + R1 to turn off Controller Mode. Turn this off if a game on the other device needs that combination."
             checked={state.quit_combo}
-            onChange={(enabled) => setQuitCombo(enabled).catch(onRequestError)}
+            onChange={(enabled) => request(() => setQuitCombo(enabled))}
           />
         </PanelSectionRow>
       </PanelSection>
