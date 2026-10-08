@@ -73,6 +73,32 @@ Bluetooth state and were not used to hide the failure. BlueZ documents that
 [Device1 connection success may mean only one profile connected](https://github.com/bluez/bluez/blob/5.83/doc/org.bluez.Device.rst),
 so it cannot prove HID readiness.
 
+### Forced-termination check and Loader limitation
+
+With Controller Mode ON, an independent read confirmed exactly one Xbox identity, no original BlueZ
+identity, interval 12–16, and a durable journal containing original interval 24–40. Sent SIGKILL only
+to the verified DeckPad process. The subsequent official Loader reload request did not return within
+30 seconds. Decky 3.2.10's socket reader returns an empty string on EOF while its response listener
+continues parsing in a loop, swallowing the parse exception without closing the socket. This source
+path is consistent with the observed unresponsive Loader; it is not a passing automatic crash-recovery
+test.
+
+Invoking the deployed DeckPad `device_id.restore_leftover` and
+`connection_interval.restore_leftover` directly, once, returned true for both. Independent readback
+confirmed identity `bluez`, interval 24–40, the same bluetoothd PID, and no interval journal. These are
+the same functions used at plugin startup, but manual invocation does not prove automatic startup
+recovery through an unresponsive Loader.
+
+A service restart initially failed because the installed unit uses `KillMode=process`: the old Loader
+and inherited listening sockets in child processes survived and held port 1337. Considered terminating
+the verified stale service processes, changing KillMode, changing the port, and rebooting the Deck.
+Used the existing systemd service's process scope: stop, SIGTERM to its members, SIGKILL only to the
+verified unresponsive old Loader, then start after the group and port were empty. This restarts other
+Decky plugins as part of Loader recovery; no Bluetooth service restart or permanent unit change was
+made. See the official
+[socket implementation](https://github.com/SteamDeckHomebrew/decky-loader/blob/v3.2.10/backend/decky_loader/localplatform/localsocket.py)
+and [systemd kill semantics](https://github.com/systemd/systemd/blob/main/man/systemd.kill.xml).
+
 ## Module review
 
 Reviewed the final responsibilities, callers and cleanup paths. Protocol values and stable external
