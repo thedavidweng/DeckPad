@@ -55,8 +55,9 @@ actual embedded Python 3.11.7. The Mac Host already had a DeckPad bond.
 These checks used official Decky backend routes through the running Steam CEF, not QAM interactions.
 The existing Mac bond reaches BlueZ `Connected: yes`, but macOS displays the gamepad as not connected;
 DeckPad records **zero delivered reports / no Host subscribed**. This is not a successful HID
-reconnect or input test. A fresh pairing is pending user confirmation, followed by actual controls,
-QAM, focus, clipboard and uninstall checks. Bluetooth recovery and abnormal termination were
+reconnect or input test. The later original-release comparison below supersedes the pending fresh
+pairing status: the rewritten package now pairs and delivers HID reports on this Mac. Complete
+controls, QAM, focus, clipboard and uninstall checks remain open. Bluetooth recovery and abnormal termination were
 subsequently checked with the results and limitations recorded below.
 
 Observed limitations: startup cleanup's `Device1.Disconnect` reaches its three-second timeout for this
@@ -173,6 +174,54 @@ Bluetooth service and comparison with another Host. Fresh bonds and reopened win
 establish a link. Restarted only the Deck's Bluetooth service and reopened Pairing Mode; the resulting
 195-second `/tmp/deckpad-mac-after-bt-restart.btsnoop` capture also contains no Connection Complete,
 SMP or ATT exchange. No retry loop, protocol fallback or permanent system setting was added.
+
+### Original release comparison on the same Mac — 2026-10-08
+
+The user confirmed that v0.0.1 previously connected and delivered input on this same Mac. Downloaded
+the original GitHub release ZIP, SHA-256
+`b39980b57649eb500053674b9500b7b296910b65d9257e4ce0beb488b652b182`; all 73 packaged Python module
+files present in the tag match `0299c0f`, and all 41 dbus-fast files match the current package.
+Temporarily deployed the complete original archive after verifying Controller Mode OFF, original
+DeviceID and interval 24–40. Preserved the rewritten plugin directory and settings separately.
+
+The original release paired with the Mac successfully. The Deck capture confirms a successful
+peripheral LE connection, SMP pairing, a HID Report CCCD subscription and input notifications.
+The user confirmed connection success. Comparing the raw HCI command packets with the earlier
+rewrite capture finds byte-for-byte identical initial advertising parameters, advertising data,
+scan response and advertising enable commands: public address, legacy connectable/scannable
+`ADV_IND`, 1280 ms interval, channels 37–39, HID UUID `1812`, appearance `03c4`, flags `06` and
+name `steamdeck`. Neither version creates a separate virtual-controller Bluetooth address.
+
+Restored the complete rewritten package and retained the newly established pairing. It briefly
+connected and transmitted 845 HID notifications, then disconnected. Subsequent Forget and pairing
+window operations appear in the backend log; the user reported spinning/failure. BlueZ logged
+`remove_accept_list_complete(): Failed to remove device ... Invalid Parameters (0x0d)` at Forget.
+This observation does not establish whether the failure originates in DeckPad, BlueZ or firmware.
+The failed subsequent Mac connection attempt did not reach the pairing agent. A brief notification
+stream is not evidence of a stable reconnection gate passing.
+
+Completely closed and reopened the rewritten Controller Mode, then opened a fresh Pairing Mode.
+The user confirmed successful connection that remained connected. Diagnostics confirm pairing,
+HID notifications (7,493 after more than two minutes), active Controller Identity, 15 ms link interval and no
+error. A scoped D-Bus monitor records `Agent1.RequestAuthorization`, not `RequestConfirmation`.
+BlueZ 5.83's `device_confirm_passkey` routes Just Works (`confirm_hint` set) to authorization;
+the original successful pairing also had confirm hint `01`. Therefore the rewritten rejection of
+unseen numeric comparison is not implicated by these successful Mac pairing traces.
+
+Mac IORegistry independently identifies `steamdeck` as a Bluetooth Low Energy HID device with
+VID `045e`, PID `0b13`, version `0509`, Generic Desktop usage page `01`, Gamepad usage `05`,
+and an attached `AppleGCHIDUserEventDriver`. This confirms that the connected device is the
+emulated controller. The earlier accessibility text concatenated nearby device names; treating
+`Health Scale` as steamdeck's device classification was unsupported and is withdrawn.
+
+Artifacts on the Deck: `/tmp/deckpad-v001-ab.btsnoop`,
+`/tmp/deckpad-rewrite-after-v001-bond.btsnoop`, `/tmp/deckpad-rewrite-clean-fresh.btsnoop`,
+and the scoped agent captures. Local Mac logs and HID identity are under `/tmp/deckpad-*-ab-*`,
+`/tmp/deckpad-rewrite-after-v001-mac-log.txt`, and `/tmp/deckpad-mac-current-hid.txt`.
+The rewritten package is restored; the successful new Mac pairing is retained. No product code,
+protocol fallback, adapter alias or permanent Bluetooth setting was changed for this comparison.
+The cause of the earlier failure and repeatable Forget/re-pair reliability remain open; complete
+button/axis mapping and the remaining hardware gates are not established by this comparison.
 
 ### Adapter renumbering and interval recovery
 
@@ -323,7 +372,8 @@ copy button in Troubleshooting, and the open unknowns below.
 | Host | Status |
 |---|---|
 | Linux with BlueZ (Arch Linux, BlueZ 5.87) | Tested: pairs, reconnects, receives input as an Xbox controller |
-| Windows 10/11, macOS, iOS/iPadOS, Android, ChromeOS | Untested |
+| macOS 27.0.1 (same Mac, rewritten package) | Fresh pairing and sustained HID notifications verified; Xbox BLE identity and Apple game-controller driver verified; full mapping and repeatable reconnect/Forget gates open |
+| Windows 10/11, iOS/iPadOS, Android, ChromeOS | Untested |
 | Game consoles, smart TVs | Untested |
 | Steam Deck OLED (as the controller) | Untested |
 
@@ -331,8 +381,8 @@ copy button in Troubleshooting, and the open unknowns below.
 
 | # | Unknown | Status |
 |---|---|---|
-| U1 | Which Device Information Service PnP ID each Host OS uses. bluetoothd publishes its own DIS (`1D6B:0246`) before DeckPad's, and a Linux Host built its first gamepad from it. | Resolved for Linux by overriding bluetoothd's DeviceID while Controller Mode is on ([ADR-0006](adr/0006-override-bluetoothd-deviceid-in-memory.md)): the Host reads `045E:0B13` on its first pairing. Windows, macOS, iOS and Android are untested. |
-| U2 | Whether a shorter LE connection interval can be requested, and whether Hosts accept it. | Resolved for the Linux Host ([ADR-0008](adr/0008-shorter-connection-interval-and-link-paced-reports.md)): it settles at 18.75 ms. 3 of 13 interval updates were followed by a link drop. Other Hosts are untested. |
+| U1 | Which Device Information Service PnP ID each Host OS uses. bluetoothd publishes its own DIS (`1D6B:0246`) before DeckPad's, and a Linux Host built its first gamepad from it. | Linux and macOS expose `045E:0B13` with the runtime override ([ADR-0006](adr/0006-override-bluetoothd-deviceid-in-memory.md)). macOS IORegistry confirms version `0509` and its Apple game-controller driver. Windows, iOS and Android remain untested. |
+| U2 | Whether a shorter LE connection interval can be requested, and whether Hosts accept it. | The Linux Host settles at 18.75 ms ([ADR-0008](adr/0008-shorter-connection-interval-and-link-paced-reports.md)); 3 of 13 earlier updates were followed by a link drop. The Mac's new successful pairing settles at 15 ms with sustained notifications. Other Hosts remain untested. |
 | U3 | Coexistence with Bluetooth headphones, keyboards or controllers paired to the Deck while a Host is connected (audio dropouts, throughput). | Open. Needs real peripherals and a person listening. |
 | U4 | Whether Steam's UI on the Deck reacts to presses during Controller Mode, and whether a full-screen route can absorb them. | Mostly resolved on the Deck (SteamOS 3.8.28, Gaming Mode). The Controller Screen ([ADR-0011](adr/0011-controller-screen-route.md)) absorbs the presses: a person pressed every core control and nothing behind it moved. The first build also swallowed the Steam and `…` buttons, so the user could not leave. Now, while the Quit Combo ([ADR-0012](adr/0012-quit-combo.md)) is on, the screen turns those two buttons' menus off with Steam's own switch ([ADR-0014](adr/0014-turn-off-steams-menu-buttons-on-the-controller-screen.md)): pressing them opened nothing, and holding the Quit Combo closed the screen and turned Controller Mode off. **Close** (touch), Controller Mode turning off, and switching the Quit Combo off all turn the menus back on. The screen's drawing of what the Host receives ([ADR-0013](adr/0013-draw-the-host-view-with-steams-controller-outline.md)) lit up correctly for every control. Open: whether Steam's chords on the Steam button (holding it, Steam + B) still work while the screen is open. |
 | U5 | Whether dbus-fast loads in Decky's embedded Python. | Resolved: Decky's Python 3.11.7 lacks `xml.etree`, and DeckPad ships CPython's copy as a fallback (`py_modules/_stdlib`). |
