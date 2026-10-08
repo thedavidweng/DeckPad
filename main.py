@@ -85,6 +85,3 @@ class Plugin:
             pass
         except OSError as e:
             decky.logger.warning("Could not delete %s: %r", path, e)
-
-    async def _migration(self):
-        pass
