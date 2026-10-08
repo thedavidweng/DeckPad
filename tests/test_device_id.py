@@ -218,6 +218,33 @@ class OverridingBluetoothdsDeviceId(unittest.TestCase):
             self.assertIs(override.restore(), False)
         self.assertEqual(self.bluetoothd.peek(), XBOX_PNP)
 
+    def test_a_partial_write_is_rolled_back_and_never_reported_as_success(self):
+        real_open = open
+
+        def partial_write(path, mode="r", **kwargs):
+            mem = real_open(path, mode, **kwargs)
+            if mode == "r+b":
+                write = mem.write
+                writes = 0
+
+                def short_once(data):
+                    nonlocal writes
+                    writes += 1
+                    return write(data[:4] if writes == 1 else data)
+
+                mem.write = short_once
+            return mem
+
+        with patch("deckpad.device_id.open", side_effect=partial_write, create=True):
+            self.assertIsNone(self.override())
+        self.assertEqual(self.bluetoothd.peek(), BLUEZ_PNP)
+
+        override = self.override()
+        with patch("deckpad.device_id.open", side_effect=partial_write, create=True):
+            self.assertFalse(override.restore())
+        self.assertEqual(self.bluetoothd.peek(), XBOX_PNP)
+        self.assertTrue(override.restore())
+
     def test_the_identity_is_written_little_endian(self):
         self.override()
 

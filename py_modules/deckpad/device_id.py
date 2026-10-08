@@ -106,7 +106,19 @@ class _Process:
                 log.warning("DeviceID write refused: bytes changed since the scan")
                 return False
             mem.seek(address)
-            if mem.write(replacement) != len(replacement):
+            written = mem.write(replacement)
+            if written != len(replacement):
+                # Undo only the prefix this write owns. A changed process or external edit must
+                # never be overwritten, even when our own write failed.
+                mem.seek(address)
+                if (self.current(self.proc, self.pid) == self
+                        and mem.read(len(expected)) == replacement[:written] + expected[written:]):
+                    mem.seek(address)
+                    if mem.write(expected) != len(expected):
+                        raise OSError("Incomplete DeviceID rollback")
+                    mem.seek(address)
+                    if mem.read(len(expected)) != expected:
+                        raise OSError("DeviceID rollback verification failed")
                 raise OSError("Incomplete DeviceID write")
             mem.seek(address)
             if mem.read(len(replacement)) != replacement:
