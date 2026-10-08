@@ -331,6 +331,27 @@ then also captures the original's startup. `/tmp/deckpad-v001-retained-bond-reco
 independently covers the original trial. Per-trial Mac logs and diagnostic reports are under
 `/tmp/deckpad-reconnect-trial*` and `/tmp/deckpad-v001-retained-bond-reconnect-*`.
 
+### Repeated official backend reload — 2026-10-08
+
+After the Deck became reachable again, three `loader/reload_plugin` calls each stop an ON backend
+and create a new OFF backend. The first begins with the Mac connected; the subsequent two begin
+while the reconnect advertisement is waiting. Old PIDs `91537`, `93416` and `93578` each disappear
+from `/proc`; each successor is the single DeckPad process. Loader remains PID `55562` and
+bluetoothd remains PID `67844`. Each new backend reports no error, one retained Mac pairing,
+Quit Combo enabled and the Steam menu switch enabled.
+
+Separate read-only scans of bluetoothd's writable image after every reload find exactly one
+original DeviceID and zero Xbox replacements. A separate MGMT socket reads adapter index 1 and
+the original interval 24–40 every time. After the third reload, backend PID `93685` has no hidraw
+file descriptor, no interval recovery journal remains, and BlueZ's `ActiveInstances` is zero.
+Artifacts: `/tmp/deckpad-reload-pass{1,2,3}.json` and their `-readback.json` files on the Mac.
+
+Controller Screen was closed before these checks and its menu switch was already enabled.
+This verifies repeated backend process shutdown and system restoration; it does not establish
+menu restoration from an open Controller Screen, frontend listener/route counts, active physical
+input cleanup, forced-kill recovery or uninstall. The third reload returns Controller Mode to OFF.
+It is subsequently re-enabled for the pending manual Close acceptance; the Mac pairing remains.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
