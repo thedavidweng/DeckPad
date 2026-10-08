@@ -11,6 +11,22 @@ from tests.support.deck_state import deck_state_report
 
 
 class ControllerLoss(unittest.IsolatedAsyncioTestCase):
+    async def test_stop_outside_an_active_loop_unregisters_the_owned_reader(self):
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(os.close, write_fd)
+        controls = DeckControls(lambda _: False, 0.05)
+        loop = asyncio.get_running_loop()
+        with patch("deckpad.deck_controls.find_controller_node", return_value="/dev/hidraw2"), \
+                patch("deckpad.deck_controls.os.open", return_value=read_fd):
+            controls.start()
+        with patch("deckpad.deck_controls.asyncio.get_running_loop", side_effect=RuntimeError("no active loop")), \
+                patch.object(loop, "remove_reader", wraps=loop.remove_reader) as remove:
+            controls.stop()
+            controls.stop()
+        remove.assert_called_once_with(read_fd)
+        with self.assertRaises(OSError):
+            os.fstat(read_fd)
+
     async def test_reader_registration_failure_closes_the_opened_fd(self):
         read_fd, write_fd = os.pipe()
         self.addCleanup(os.close, write_fd)

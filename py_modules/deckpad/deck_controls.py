@@ -53,6 +53,7 @@ class DeckControls:
         self._quit_combo_enabled = quit_combo_enabled
         self._quit_combo_held = False
         self._fd = None
+        self._loop = None
         self._retry = None
         self._running = False
         self._missing_logged = False
@@ -93,7 +94,9 @@ class DeckControls:
         if path is not None:
             try:
                 self._fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
-                asyncio.get_running_loop().add_reader(self._fd, self._readable)
+                loop = asyncio.get_running_loop()
+                loop.add_reader(self._fd, self._readable)
+                self._loop = loop
             except OSError as e:
                 self._close()
                 if self.problem != "open %s: %r" % (path, e):
@@ -126,11 +129,12 @@ class DeckControls:
     def _close(self):
         if self._fd is not None:
             try:
-                asyncio.get_running_loop().remove_reader(self._fd)
-            except RuntimeError:
-                pass
-            os.close(self._fd)
-            self._fd = None
+                if self._loop is not None:
+                    self._loop.remove_reader(self._fd)
+            finally:
+                os.close(self._fd)
+                self._fd = None
+                self._loop = None
 
     def _readable(self):
         latest = None
