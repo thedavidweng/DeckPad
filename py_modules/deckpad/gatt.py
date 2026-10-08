@@ -47,19 +47,19 @@ class Descriptor(ServiceInterface):
         self.value = bytes(value)
 
     @dbus_property(access=PropertyAccess.READ)
-    def UUID(self) -> "s":
+    def UUID(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._uuid
 
     @dbus_property(access=PropertyAccess.READ)
-    def Characteristic(self) -> "o":
+    def Characteristic(self) -> "o":  # noqa: F821 — D-Bus signature
         return self._characteristic_path
 
     @dbus_property(access=PropertyAccess.READ)
-    def Flags(self) -> "as":
+    def Flags(self) -> "as":  # noqa: F722 — D-Bus signature
         return self._flags
 
     @method()
-    def ReadValue(self, options: "a{sv}") -> "ay":
+    def ReadValue(self, options: "a{sv}") -> "ay":  # noqa: F722, F821 — D-Bus signature
         value = _read(self.value, self._flags, options)
         self._application.host_seen(_device(options))
         return value
@@ -86,29 +86,29 @@ class Characteristic(ServiceInterface):
         return descriptor
 
     @dbus_property(access=PropertyAccess.READ)
-    def UUID(self) -> "s":
+    def UUID(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._uuid
 
     @dbus_property(access=PropertyAccess.READ)
-    def Service(self) -> "o":
+    def Service(self) -> "o":  # noqa: F821 — D-Bus signature
         return self._service_path
 
     @dbus_property(access=PropertyAccess.READ)
-    def Flags(self) -> "as":
+    def Flags(self) -> "as":  # noqa: F722 — D-Bus signature
         return self._flags
 
     @dbus_property(access=PropertyAccess.READ)
-    def Value(self) -> "ay":
+    def Value(self) -> "ay":  # noqa: F821 — D-Bus signature
         return self.value
 
     @method()
-    def ReadValue(self, options: "a{sv}") -> "ay":
+    def ReadValue(self, options: "a{sv}") -> "ay":  # noqa: F722, F821 — D-Bus signature
         value = _read(self.value, self._flags, options)
         self.application.host_seen(_device(options))
         return value
 
     @method()
-    def WriteValue(self, value: "ay", options: "a{sv}"):
+    def WriteValue(self, value: "ay", options: "a{sv}"):  # noqa: F722, F821 — D-Bus signature
         if not any(flag in self._flags for flag in ("write", "encrypt-write", "write-without-response")):
             raise DBusError("org.bluez.Error.NotPermitted", "Value is not writable")
         if _offset(options) != 0:
@@ -155,19 +155,19 @@ class Service(ServiceInterface):
         return characteristic
 
     @dbus_property(access=PropertyAccess.READ)
-    def UUID(self) -> "s":
+    def UUID(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._uuid
 
     @dbus_property(access=PropertyAccess.READ)
-    def Primary(self) -> "b":
+    def Primary(self) -> "b":  # noqa: F821 — D-Bus signature
         return True
 
     @dbus_property()
-    def Handle(self) -> "q":
+    def Handle(self) -> "q":  # noqa: F821 — D-Bus signature
         return self.handle
 
     @Handle.setter
-    def Handle(self, value: "q"):
+    def Handle(self, value: "q"):  # noqa: F821 — D-Bus signature
         self.handle = value
 
 

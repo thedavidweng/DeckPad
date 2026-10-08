@@ -37,20 +37,20 @@ class _Adapter(ServiceInterface):
         self.powered = powered
 
     @dbus_property(access=PropertyAccess.READ)
-    def Address(self) -> "s":
+    def Address(self) -> "s":  # noqa: F821 — D-Bus signature
         return "E8:FB:1C:43:F3:44"
 
     @dbus_property(access=PropertyAccess.READ)
-    def Powered(self) -> "b":
+    def Powered(self) -> "b":  # noqa: F821 — D-Bus signature
         return self.powered
 
 
     @dbus_property(access=PropertyAccess.READ)
-    def Alias(self) -> "s":
+    def Alias(self) -> "s":  # noqa: F821 — D-Bus signature
         return "steamdeck"
 
     @method()
-    async def RemoveDevice(self, device: "o"):
+    async def RemoveDevice(self, device: "o"):  # noqa: F821 — D-Bus signature
         self._bluez.calls.append(("RemoveDevice", device))
         if self._bluez.reject_remove_device:
             raise DBusError(_FAILED, self._bluez.reject_remove_device)
@@ -87,27 +87,27 @@ class _Device(ServiceInterface):
             self.emit_properties_changed(changed)
 
     @dbus_property(access=PropertyAccess.READ)
-    def Address(self) -> "s":
+    def Address(self) -> "s":  # noqa: F821 — D-Bus signature
         return self.address
 
     @dbus_property(access=PropertyAccess.READ)
-    def AddressType(self) -> "s":
+    def AddressType(self) -> "s":  # noqa: F821 — D-Bus signature
         return "public"
 
     @dbus_property(access=PropertyAccess.READ)
-    def Alias(self) -> "s":
+    def Alias(self) -> "s":  # noqa: F821 — D-Bus signature
         return self.alias
 
     @dbus_property(access=PropertyAccess.READ)
-    def Connected(self) -> "b":
+    def Connected(self) -> "b":  # noqa: F821 — D-Bus signature
         return self.connected
 
     @dbus_property(access=PropertyAccess.READ)
-    def Paired(self) -> "b":
+    def Paired(self) -> "b":  # noqa: F821 — D-Bus signature
         return self.paired
 
     @dbus_property(access=PropertyAccess.READ)
-    def Bonded(self) -> "b":
+    def Bonded(self) -> "b":  # noqa: F821 — D-Bus signature
         return self.paired
 
     @method()

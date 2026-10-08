@@ -1,7 +1,7 @@
 """Troubleshooting diagnostics: what the panel's secondary Troubleshooting section shows and copies.
 
-Driven through the plugin backend against a fake org.bluez on a private bus. The tests do not run as
-root, as DeckPad would on a misconfigured Decky."""
+Driven through the plugin backend against a fake org.bluez on a private bus. Privilege tests explicitly
+select root or non-root, so the suite also works inside a build container."""
 
 import unittest
 import threading
@@ -66,7 +66,8 @@ class Diagnostics(PluginTestCase):
         self.assertIn("AccessDenied", diagnostics["text"])
 
     async def test_they_say_which_root_only_features_are_unavailable(self):
-        diagnostics = await self.plugin.get_diagnostics()
+        with mock.patch.object(diagnostics_module.os, "geteuid", return_value=1000):
+            diagnostics = await self.plugin.get_diagnostics()
 
         self.assertIn("Running as root: no", diagnostics["text"])
         self.assertIn("Controller Identity override: unavailable (needs root)", diagnostics["text"])

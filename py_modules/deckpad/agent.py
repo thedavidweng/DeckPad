@@ -30,31 +30,31 @@ class PairingAgent(ServiceInterface):
         pass
 
     @method()
-    def RequestPinCode(self, device: "o") -> "s":
+    def RequestPinCode(self, device: "o") -> "s":  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "PIN pairing is not supported")
 
     @method()
-    def DisplayPinCode(self, device: "o", pincode: "s"):
+    def DisplayPinCode(self, device: "o", pincode: "s"):  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "PIN pairing is not supported")
 
     @method()
-    def RequestPasskey(self, device: "o") -> "u":
+    def RequestPasskey(self, device: "o") -> "u":  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "Passkey entry is not supported")
 
     @method()
-    def DisplayPasskey(self, device: "o", passkey: "u", entered: "q"):
+    def DisplayPasskey(self, device: "o", passkey: "u", entered: "q"):  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "Passkey display is not supported")
 
     @method()
-    def RequestConfirmation(self, device: "o", passkey: "u"):
+    def RequestConfirmation(self, device: "o", passkey: "u"):  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "Numeric comparison is not supported")
 
     @method()
-    def RequestAuthorization(self, device: "o"):
+    def RequestAuthorization(self, device: "o"):  # noqa: F821 — D-Bus signature
         self._authorize(device)
 
     @method()
-    def AuthorizeService(self, device: "o", uuid: "s"):
+    def AuthorizeService(self, device: "o", uuid: "s"):  # noqa: F821 — D-Bus signature
         # BlueZ asks this only for paired but untrusted devices, so the user's trusted peripherals never
         # get here.
         if uuid.lower() not in self._service_uuids or not self._allow_service(device):
