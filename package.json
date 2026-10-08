@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "rollup -c",
+    "typecheck": "tsc --noEmit",
     "watch": "rollup -c -w",
     "test": "python3 -m unittest discover -s tests -t . -v"
   },
@@ -30,9 +31,9 @@
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
     "@decky/ui": "^4.12.1",
-    "@rollup/rollup-linux-x64-musl": "^4.64.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@types/react-router": "5.1.20",
     "rollup": "^4.64.0",
     "typescript": "^7.0.2"
   },
