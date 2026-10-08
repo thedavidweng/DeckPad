@@ -114,7 +114,7 @@ class RequestingAShorterInterval(unittest.TestCase):
         with patch.object(self.kernel, "handle", side_effect=lost_response):
             self.assertIsNone(self.request())
         with open(self.state_path) as f:
-            self.assertEqual(json.load(f), {"index": 0, "min": 24, "max": 40})
+            self.assertEqual(json.load(f), {"address": self.kernel.address, "min": 24, "max": 40})
         self.kernel.refuse = False
         self.assertTrue(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
         self.assertEqual(self.kernel.conn_interval, (24, 40))
@@ -155,7 +155,36 @@ class RequestingAShorterInterval(unittest.TestCase):
         self.assertIsNone(self.request())
         self.assertEqual(self.kernel.conn_interval, (32, 48))
         with open(self.state_path) as f:
-            self.assertEqual(json.load(f), {"index": 0, "min": 24, "max": 40})
+            self.assertEqual(json.load(f), {"address": self.kernel.address, "min": 24, "max": 40})
+
+    def test_restore_follows_the_same_adapter_after_index_changes(self):
+        request = self.request()
+        self.kernel.index = 1
+        self.assertTrue(request.restore())
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+        self.assertFalse(os.path.exists(self.state_path))
+
+    def test_restore_never_writes_a_replacement_at_the_old_index(self):
+        request = self.request()
+        self.kernel.address = "01:02:03:04:05:06"
+        self.assertFalse(request.restore())
+        self.assertEqual(self.kernel.conn_interval, REQUESTED)
+        self.assertTrue(os.path.exists(self.state_path))
+
+    def test_identity_change_during_restore_read_prevents_write(self):
+        request = self.request()
+        handle = self.kernel.handle
+
+        def changed_adapter(opcode, index, params):
+            reply = handle(opcode, index, params)
+            if opcode == 0x004B:
+                self.kernel.address = "01:02:03:04:05:06"
+            return reply
+
+        with patch.object(self.kernel, "handle", side_effect=changed_adapter):
+            self.assertFalse(request.restore())
+        self.assertEqual(self.kernel.conn_interval, REQUESTED)
+        self.assertTrue(os.path.exists(self.state_path))
 
 
 class NotWhilePairing(unittest.TestCase):
@@ -236,13 +265,47 @@ class AfterThePluginWasKilled(unittest.TestCase):
         for value in (True, -1, 65536, "24"):
             with self.subTest(value=value):
                 with open(self.state_path, "w") as f:
-                    json.dump({"index": 0, "min": value, "max": 40}, f)
+                    json.dump({"address": self.kernel.address, "min": value, "max": 40}, f)
                 self.assertFalse(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
                 self.assertEqual(self.kernel.sockets_opened, 0)
                 self.assertTrue(os.path.exists(self.state_path))
 
+    def test_index_only_record_is_preserved_without_guessing_ownership(self):
+        with open(self.state_path, "w") as f:
+            json.dump({"index": 0, "min": 24, "max": 40}, f)
+        self.assertFalse(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
+        self.assertEqual(self.kernel.sockets_opened, 0)
+        self.assertTrue(os.path.exists(self.state_path))
+
+    def test_invalid_adapter_addresses_are_rejected_before_opening_socket(self):
+        for address in (None, "00:00:00:00:00:00", "e8:fb:1c:43:f3:44", "E8FB1C43F344", "not a MAC"):
+            with self.subTest(address=address):
+                with open(self.state_path, "w") as f:
+                    json.dump({"address": address, "min": 24, "max": 40}, f)
+                self.assertFalse(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
+                self.assertEqual(self.kernel.sockets_opened, 0)
+
 
 class MgmtValidation(unittest.TestCase):
+    def test_malformed_controller_information_is_rejected(self):
+        for data in (bytes(279), bytes(281), bytes(280)):
+            kernel = FakeMgmtKernel()
+            mgmt = connection_interval._Mgmt(kernel.open_socket)
+            self.addCleanup(mgmt.close)
+            with self.subTest(length=len(data)), patch.object(mgmt, "command", return_value=data):
+                with self.assertRaises(ValueError):
+                    mgmt.read_address(0)
+
+    def test_malformed_index_lists_are_rejected(self):
+        for data in (b"", b"\x01", bytes.fromhex("0100"), bytes.fromhex("010000000100"),
+                     bytes.fromhex("020000000000"), bytes.fromhex("0100ffff")):
+            kernel = FakeMgmtKernel()
+            mgmt = connection_interval._Mgmt(kernel.open_socket)
+            self.addCleanup(mgmt.close)
+            with self.subTest(data=data), patch.object(mgmt, "command", return_value=data):
+                with self.assertRaises(ValueError):
+                    mgmt.find_adapter(kernel.address)
+
     def test_malformed_tlvs_are_rejected(self):
         for data in (b"\x17", bytes.fromhex("1700020c"), bytes.fromhex("1700010c"),
                      bytes.fromhex("1700020c001700020d00")):

@@ -25,6 +25,8 @@ REQUESTED = (12, 16)
 
 _READ_DEF_SYSTEM_CONFIG = 0x004B
 _SET_DEF_SYSTEM_CONFIG = 0x004C
+_READ_INDEX_LIST = 0x0003
+_READ_INFO = 0x0004
 _EV_CMD_COMPLETE = 0x0001
 _EV_CMD_STATUS = 0x0002
 _LE_MIN_CONN_INTERVAL = 0x0017
@@ -87,6 +89,29 @@ class _Mgmt:
         _validate_interval(interval)
         return interval
 
+    def read_address(self, index):
+        info = self.command(_READ_INFO, index)
+        if len(info) != 280:
+            raise ValueError("Invalid MGMT controller information length")
+        address = ":".join("%02X" % value for value in info[:6][::-1])
+        _validate_address(address)
+        return address
+
+    def find_adapter(self, address):
+        data = self.command(_READ_INDEX_LIST, HCI_DEV_NONE)
+        if len(data) < 2:
+            raise ValueError("Truncated MGMT controller index list")
+        count = struct.unpack_from("<H", data)[0]
+        if len(data) != 2 + 2 * count:
+            raise ValueError("Invalid MGMT controller index list length")
+        indices = struct.unpack_from("<%dH" % count, data, 2)
+        if len(set(indices)) != count or HCI_DEV_NONE in indices:
+            raise ValueError("Invalid MGMT controller indices")
+        matches = [index for index in indices if self.read_address(index) == address]
+        if len(matches) != 1:
+            raise OSError("Saved Bluetooth adapter is absent or ambiguous")
+        return matches[0]
+
     def set_conn_interval(self, index, interval):
         # The kernel checks nothing about the pair, so the order of the two values does not matter.
         params = struct.pack("<HBHHBH", _LE_MIN_CONN_INTERVAL, 2, interval[0], _LE_MAX_CONN_INTERVAL, 2, interval[1])
@@ -120,6 +145,14 @@ def _validate_interval(interval):
         raise ValueError("Invalid LE connection interval range")
 
 
+def _validate_address(address):
+    if not isinstance(address, str):
+        raise ValueError("Invalid Bluetooth adapter address")
+    raw = bytes.fromhex(address.replace(":", ""))
+    if len(raw) != 6 or not any(raw) or address != ":".join("%02X" % value for value in raw):
+        raise ValueError("Invalid Bluetooth adapter address")
+
+
 class IntervalRequest:
     def __init__(self, state_path, open_socket):
         self._state_path = state_path
@@ -147,11 +180,14 @@ def request(index, state_path, open_socket=open_mgmt_socket):
         log.info("Cannot change the connection interval: %r", e)
         return None
     try:
+        address = mgmt.read_address(index)
         previous = mgmt.read_conn_interval(index)
         if previous != REQUESTED:
-            _remember(state_path, index, previous)
+            _remember(state_path, address, previous)
+            if mgmt.read_address(index) != address:
+                raise OSError("Bluetooth adapter changed before interval request")
             mgmt.set_conn_interval(index, REQUESTED)
-            if mgmt.read_conn_interval(index) != REQUESTED:
+            if mgmt.read_conn_interval(index) != REQUESTED or mgmt.read_address(index) != address:
                 raise OSError("Connection interval request verification failed")
     except Exception as e:
         log.warning("Could not request a shorter connection interval: %r", e)
@@ -205,9 +241,8 @@ def restore_leftover(state_path, open_socket=open_mgmt_socket):
     try:
         with open(state_path) as f:
             saved = json.load(f)
-        index, previous = saved["index"], (saved["min"], saved["max"])
-        if type(index) is not int or not 0 <= index < HCI_DEV_NONE:
-            raise ValueError("Invalid adapter index")
+        address, previous = saved["address"], (saved["min"], saved["max"])
+        _validate_address(address)
         _validate_interval(previous)
     except FileNotFoundError:
         return False
@@ -215,7 +250,7 @@ def restore_leftover(state_path, open_socket=open_mgmt_socket):
         log.warning("Ignoring unreadable %s: %r", state_path, e)
         return False
     try:
-        _restore(open_socket, index, previous)
+        _restore(open_socket, address, previous)
     except Exception as e:
         log.warning("Could not restore the adapter's connection interval: %r", e)
         return False
@@ -223,20 +258,23 @@ def restore_leftover(state_path, open_socket=open_mgmt_socket):
     return True
 
 
-def _restore(open_socket, index, interval):
+def _restore(open_socket, address, interval):
     mgmt = _Mgmt(open_socket)
     try:
+        index = mgmt.find_adapter(address)
         current = mgmt.read_conn_interval(index)
+        if mgmt.read_address(index) != address:
+            raise OSError("Bluetooth adapter changed before interval restore")
         if current == interval:
             return
         if current != REQUESTED:
             raise OSError("Connection interval changed outside DeckPad; refusing to overwrite it")
         mgmt.set_conn_interval(index, interval)
-        if mgmt.read_conn_interval(index) != interval:
+        if mgmt.read_conn_interval(index) != interval or mgmt.read_address(index) != address:
             raise OSError("Connection interval restore verification failed")
     finally:
         mgmt.close()
 
 
-def _remember(state_path, index, previous):
-    storage.save(state_path, {"index": index, "min": previous[0], "max": previous[1]})
+def _remember(state_path, address, previous):
+    storage.save(state_path, {"address": address, "min": previous[0], "max": previous[1]})

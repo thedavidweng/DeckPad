@@ -15,7 +15,12 @@ survives, including during uninstall. Restoration first reads the current range:
 range is accepted, DeckPad's requested range may be restored, and any other range is left untouched
 with its recovery record retained. New requests cannot replace an unresolved record. MGMT packets
 must match their declared lengths, successful command completion, and well-formed, unique TLVs;
-interval values and persisted adapter indices are validated before use. This follows the
+interval values and persisted adapter addresses are validated before use. The recovery record saves
+the controller's public address, not its transient `hciN` index. MGMT Read Controller Index List and
+Read Controller Information resolve that address uniquely before restoration; identity is checked
+again around the configuration read/write. A reset can renumber the same controller. A missing or
+ambiguous controller retains the record, and an index-only old record requires manual identity and
+range verification rather than guessing which adapter to write. This follows the
 [BlueZ management protocol](https://github.com/bluez/bluez/blob/master/doc/mgmt-protocol.rst).
 
 ## Considered options

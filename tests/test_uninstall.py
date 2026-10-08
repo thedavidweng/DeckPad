@@ -110,7 +110,7 @@ class UninstallingDeckPad(ConnectionsCase):
     async def test_it_keeps_an_interval_record_when_restoration_is_not_permitted(self):
         interval_state = os.path.join(self.decky.DECKY_PLUGIN_RUNTIME_DIR, "connection_interval.json")
         os.makedirs(self.decky.DECKY_PLUGIN_RUNTIME_DIR, exist_ok=True)
-        saved = '{"index": 0, "min": 24, "max": 40}'
+        saved = '{"address": "E8:FB:1C:43:F3:44", "min": 24, "max": 40}'
         with open(interval_state, "w") as f:
             f.write(saved)
         await self.uninstall()

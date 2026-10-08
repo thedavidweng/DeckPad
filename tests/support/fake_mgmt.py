@@ -1,6 +1,6 @@
 """The kernel's Bluetooth management (MGMT) control channel, as seen through a socket.
 
-Models only Read/Set Default System Configuration (opcodes 0x004B/0x004C, BlueZ doc/mgmt-api.txt) for
+Models controller identity/list and Read/Set Default System Configuration for
 one controller index, plus unrelated events that every control socket also receives.
 """
 
@@ -21,6 +21,7 @@ LE_MAX_CONN_INTERVAL = 0x0018
 class FakeMgmtKernel:
     def __init__(self, index=0, conn_interval=(24, 40)):
         self.index = index
+        self.address = "E8:FB:1C:43:F3:44"
         # TLV type -> u16 value. A few other parameters, as the kernel returns ~30 of them.
         self.config = {0x0000: 0, 0x000A: 0x0800, LE_MIN_CONN_INTERVAL: conn_interval[0],
                        LE_MAX_CONN_INTERVAL: conn_interval[1], 0x0019: 0, 0x001A: 42}
@@ -38,8 +39,13 @@ class FakeMgmtKernel:
         return _ControlSocket(self)
 
     def handle(self, opcode, index, params):
+        if opcode == 0x0003 and index == 0xFFFF:
+            return _event(EV_CMD_COMPLETE, index, struct.pack("<HBHH", opcode, 0, 1, self.index))
         if index != self.index:
             return _event(EV_CMD_STATUS, index, struct.pack("<HB", opcode, STATUS_INVALID_INDEX))
+        if opcode == 0x0004:
+            info = bytes.fromhex(self.address.replace(":", ""))[::-1] + bytes(274)
+            return _event(EV_CMD_COMPLETE, index, struct.pack("<HB", opcode, 0) + info)
         if opcode == READ_DEF_SYSTEM_CONFIG:
             tlvs = b"".join(struct.pack("<HBH", t, 2, v) for t, v in sorted(self.config.items()))
             return _event(EV_CMD_COMPLETE, index, struct.pack("<HB", opcode, 0) + tlvs)
