@@ -1,7 +1,15 @@
 import { IconsModule } from "@decky/ui";
 import { FC } from "react";
-import { FaGamepad } from "react-icons/fa";
 import { GamepadPreview } from "./backend";
+
+// The "gamepad" icon from Font Awesome Free 5 (CC BY 4.0, https://fontawesome.com/license/free).
+export function GamepadIcon({ size = "1em" }: { size?: number | string }) {
+  return (
+    <svg viewBox="0 0 640 512" width={size} height={size} fill="currentColor">
+      <path d="M480.07 96H160a160 160 0 1 0 114.24 272h91.52A160 160 0 1 0 480.07 96zM248 268a12 12 0 0 1-12 12h-52v52a12 12 0 0 1-12 12h-24a12 12 0 0 1-12-12v-52H84a12 12 0 0 1-12-12v-24a12 12 0 0 1 12-12h52v-52a12 12 0 0 1 12-12h24a12 12 0 0 1 12 12v52h52a12 12 0 0 1 12 12zm216 76a40 40 0 1 1 40-40 40 40 0 0 1-40 40zm64-96a40 40 0 1 1 40-40 40 40 0 0 1-40 40z" />
+    </svg>
+  );
+}
 
 // Steam's own Xbox controller drawing, from the icons module its Test Device Inputs page uses. It is
 // not part of Decky's API, so the screen falls back to a plain icon if Steam renames it.
@@ -15,7 +23,7 @@ const WIDTH = 360;
 const HEIGHT = Math.round((WIDTH * 701) / 999);
 
 export function GamepadOutline({ report }: { report: GamepadPreview | null }) {
-  if (!XboxOutline) return <FaGamepad size={72} />;
+  if (!XboxOutline) return <GamepadIcon size={72} />;
   const held = new Set(report?.buttons ?? []);
   const lt = report?.left_trigger ?? 0;
   const rt = report?.right_trigger ?? 0;

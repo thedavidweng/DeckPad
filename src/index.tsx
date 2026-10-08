@@ -11,7 +11,7 @@ import {
 import { definePlugin, routerHook } from "@decky/api";
 import { useEffect, useState } from "react";
 import { Troubleshooting } from "./troubleshooting";
-import { FaGamepad } from "react-icons/fa";
+import { GamepadIcon } from "./gamepad_outline";
 import {
   ControllerModeState,
   PairedHost,
@@ -355,7 +355,7 @@ export default definePlugin(() => {
     name: "DeckPad",
     titleView: <div className={staticClasses.Title}>DeckPad</div>,
     content: <Content />,
-    icon: <FaGamepad />,
+    icon: <GamepadIcon />,
     onDismount() {
       restoreSteamMenus();
       routerHook.removeRoute(CONTROLLER_SCREEN_ROUTE);
