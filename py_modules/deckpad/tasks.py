@@ -14,6 +14,7 @@ class Tasks:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._finished)
+        return task
 
     def _finished(self, task):
         self._tasks.discard(task)

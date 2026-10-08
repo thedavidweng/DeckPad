@@ -31,6 +31,49 @@ class FailureCase(PluginTestCase):
 
 
 class BluetoothRestartedUnderControllerMode(FailureCase):
+    async def test_a_second_loss_during_recovery_retries_the_new_session(self):
+        await self.plugin.set_controller_mode(True)
+        mode = self.plugin._controller_mode
+        reconcile = mode._connections.reconcile
+        attempts = 0
+
+        async def interrupted():
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                mode._watch._lost("service_stopped")
+            await reconcile()
+
+        with mock.patch.object(mode._connections, "reconcile", interrupted):
+            await self.bluez.restart()
+            state = await when(self.plugin, lambda s: s["status"] == "on" and attempts >= 2, timeout=3)
+        self.assertEqual(state["status"], "on")
+        self.assertGreaterEqual(attempts, 2)
+        self.assertEqual(len(self.bluez.applications), 1)
+
+    async def test_repeated_loss_notifications_create_only_one_recovery_task(self):
+        await self.plugin.set_controller_mode(True)
+        mode = self.plugin._controller_mode
+        watch = mode._watch
+        async def pending(*_):
+            await asyncio.Future()
+
+        with mock.patch.object(mode, "_recover", side_effect=pending) as recover:
+            mode._session_lost(watch, "first")
+            mode._session_lost(watch, "second")
+            await asyncio.sleep(0)
+            self.assertEqual(recover.call_count, 1)
+
+    async def test_turning_off_cancels_the_sleeping_recovery(self):
+        await self.plugin.set_controller_mode(True)
+        self.bluez.set_powered(False)
+        await when(self.plugin, lambda s: s["status"] == "recovering")
+        mode = self.plugin._controller_mode
+        tasks = list(mode._tasks._tasks)
+        await self.plugin.set_controller_mode(False)
+        await asyncio.sleep(0)
+        self.assertTrue(all(task.done() for task in tasks))
+
     async def test_controller_mode_comes_back_on_by_itself(self):
         await self.plugin.set_controller_mode(True)
 

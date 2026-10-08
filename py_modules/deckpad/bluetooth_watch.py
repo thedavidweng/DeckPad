@@ -30,6 +30,10 @@ class BluetoothWatch:
         self._fired = False
         self._disconnect_task = None
 
+    @property
+    def lost(self):
+        return self._fired
+
     async def start(self):
         """Raises ControllerModeError if the adapter is already gone."""
         try:

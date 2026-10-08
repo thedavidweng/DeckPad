@@ -77,6 +77,7 @@ class ControllerMode:
         # Report counts for the current session, for diagnostics.
         self._reports = _ReportCount()
         self._tasks = Tasks()
+        self._recovery_task = None
         self._closed = False
         self._preview = GamepadPreview(on_gamepad_report or _ignore)
         self._pairing = PairingMode(on_change=self._pairing_changed, on_paired=self._paired_hosts.add)
@@ -134,6 +135,8 @@ class ControllerMode:
                 await self._stop()
             elif not enabled and self._status == RECOVERING:
                 log.info("Controller Mode off (while waiting for Bluetooth)")
+                self._recovery_task.cancel()
+                self._recovery_task = None
                 await self._set_status(OFF)
             elif not enabled and self._error:
                 self._error = None
@@ -232,6 +235,7 @@ class ControllerMode:
         """
         self._closed = True
         self._tasks.cancel_all()
+        self._recovery_task = None
         self._preview.close()
         self._end_session()
         self._status = OFF
@@ -268,16 +272,20 @@ class ControllerMode:
 
     async def _start(self):
         self._error = None
-        await self._set_status(STARTING)
         try:
+            await self._set_status(STARTING)
             opened = await self._open_session()
+            if opened:
+                log.info("Controller Mode on")
+                await self._set_status(ON)
+        except asyncio.CancelledError:
+            self._end_session()
+            self._status = OFF
+            raise
         except errors.ControllerModeError as e:
             self._record_error(e)
             await self._set_status(OFF)
             return
-        if opened:
-            log.info("Controller Mode on")
-            await self._set_status(ON)
 
     async def _open_session(self):
         """Returns False if unload began meanwhile. On failure, releases everything and raises."""
@@ -291,14 +299,6 @@ class ControllerMode:
             await asyncio.wait_for(peripheral.start(), self._start_timeout)
             # Started second: losing Bluetooth while the peripheral starts already fails the start.
             await asyncio.wait_for(watch.start(), self._start_timeout)
-        except errors.ControllerModeError as e:
-            error = e
-        except asyncio.TimeoutError:
-            error = errors.start_failed("Bluetooth did not respond in time")
-        except Exception as e:
-            log.exception("Controller Mode failed to start")
-            error = errors.start_failed(repr(e))
-        else:
             if self._closed:
                 watch.stop()
                 peripheral.close()
@@ -309,12 +309,21 @@ class ControllerMode:
             self._pairing.attach(peripheral)
             self._connections.attach(peripheral)
             await self._connections.reconcile()
-            return True
+            if not self._closed and watch.lost:
+                raise errors.bluetooth_unavailable("Bluetooth disappeared during Session startup")
+            return not self._closed
+        except asyncio.CancelledError:
+            self._end_session()
+            raise
+        except errors.ControllerModeError as e:
+            error = e
+        except asyncio.TimeoutError:
+            error = errors.start_failed("Bluetooth did not respond in time")
+        except Exception as e:
+            log.exception("Controller Mode failed to start")
+            error = errors.start_failed(repr(e))
         log.warning("Controller Mode could not start: %s (%s)", error.code, error.detail)
-        watch.stop()
-        peripheral.close()
-        self._peripheral = None
-        self._watch = None
+        self._end_session()
         raise error
 
     def _end_session(self, keep_peripheral=False):
@@ -337,19 +346,25 @@ class ControllerMode:
     async def _stop(self):
         peripheral = self._end_session(keep_peripheral=True)
         self._error = None
-        await self._set_status(STOPPING)
         try:
+            await self._set_status(STOPPING)
             await asyncio.wait_for(peripheral.stop(), self._stop_timeout)
         except Exception as e:
             log.warning("Controller Mode teardown did not finish cleanly: %r", e)
         finally:
             peripheral.close()
+            self._status = OFF
         log.info("Controller Mode off")
         await self._set_status(OFF)
 
     def _session_lost(self, watch, reason):
-        if not self._closed:
-            self._tasks.spawn(self._recover(watch, reason))
+        if not self._closed and self._watch is watch and self._recovery_task is None:
+            self._recovery_task = self._tasks.spawn(self._recover(watch, reason))
+            self._recovery_task.add_done_callback(self._recovery_finished)
+
+    def _recovery_finished(self, task):
+        if self._recovery_task is task:
+            self._recovery_task = None
 
     async def _recover(self, watch, reason):
         """bluetoothd forgets every registration when it restarts, and an adapter that powers off drops
@@ -370,6 +385,7 @@ class ControllerMode:
                     return
                 try:
                     if await self._open_session():
+                        self._recovery_task = None
                         log.info("Controller Mode resumed: Bluetooth is back")
                         await self._set_status(ON)
                     return
