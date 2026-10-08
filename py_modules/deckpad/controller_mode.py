@@ -280,10 +280,14 @@ class ControllerMode:
 
     async def _remove_bluetooth_traces(self):
         try:
-            await asyncio.wait_for(self._connections.forget_all_offline(), UNINSTALL_TIMEOUT)
-        except Exception as e:
-            log.warning("Could not remove the pairings of Paired Hosts: %r", e)
-        await restore_leftover_device_id()
+            async with asyncio.timeout(UNINSTALL_TIMEOUT):
+                try:
+                    await self._connections.forget_all_offline()
+                except Exception as e:
+                    log.warning("Could not remove the pairings of Paired Hosts: %r", e)
+                await restore_leftover_device_id()
+        except TimeoutError:
+            log.warning("Bluetooth cleanup exceeded the uninstall deadline")
 
     async def _start(self):
         self._error = None

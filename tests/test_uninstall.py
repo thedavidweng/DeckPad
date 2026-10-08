@@ -6,6 +6,7 @@ import asyncio
 import os
 import unittest
 from unittest.mock import patch
+from deckpad import controller_mode
 
 from tests.support.fake_bluez import HOST_ADDRESS
 from tests.support.plugin_case import PluginTestCase
@@ -14,6 +15,28 @@ from tests.support.wait import when
 
 OTHER_HOST = "AA:BB:CC:DD:EE:01"
 HEADPHONES = "4C:87:5D:98:4A:A4"
+
+
+class UninstallDeadline(unittest.IsolatedAsyncioTestCase):
+    async def test_pairing_removal_and_identity_restore_share_one_deadline(self):
+        mode = controller_mode.ControllerMode()
+        cancelled = asyncio.Event()
+
+        async def remove():
+            await asyncio.sleep(0.03)
+
+        async def restore():
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+        with patch.object(controller_mode, "UNINSTALL_TIMEOUT", 0.05), \
+                patch.object(mode._connections, "forget_all_offline", remove), \
+                patch.object(controller_mode, "restore_leftover_device_id", restore):
+            await asyncio.wait_for(mode._remove_bluetooth_traces(), 0.15)
+        self.assertTrue(cancelled.is_set())
+        mode.shutdown()
 
 
 def completes_without_the_event_loop(coro):
