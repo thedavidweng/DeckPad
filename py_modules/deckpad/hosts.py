@@ -9,6 +9,8 @@ import json
 import logging
 import os
 
+from . import storage
+
 log = logging.getLogger("deckpad.hosts")
 
 
@@ -77,22 +79,12 @@ class PairedHosts:
     def erase(self):
         self._hosts = {}
         if self._path:
-            for path in (self._path, self._path + ".tmp"):
-                try:
-                    os.unlink(path)
-                except FileNotFoundError:
-                    pass
-                except OSError as e:
-                    log.warning("Could not delete %s: %r", path, e)
+            storage.erase(self._path)
 
     def _save(self):
         if not self._path:
             return
         try:
-            os.makedirs(os.path.dirname(self._path), exist_ok=True)
-            tmp = self._path + ".tmp"
-            with open(tmp, "w") as f:
-                json.dump({"hosts": [h.to_dict() for h in self.all()]}, f, indent=2)
-            os.replace(tmp, self._path)
+            storage.save(self._path, {"hosts": [h.to_dict() for h in self.all()]})
         except OSError as e:
             log.warning("Could not save the Paired Host list: %r", e)

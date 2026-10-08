@@ -4,6 +4,8 @@ import json
 import logging
 import os
 
+from . import storage
+
 log = logging.getLogger("deckpad.settings")
 
 
@@ -26,22 +28,12 @@ class Settings:
         """Back to the defaults, and delete the file."""
         self.quit_combo = True
         if self._path:
-            for path in (self._path, self._path + ".tmp"):
-                try:
-                    os.unlink(path)
-                except FileNotFoundError:
-                    pass
-                except OSError as e:
-                    log.warning("Could not delete %s: %r", path, e)
+            storage.erase(self._path)
 
     def _save(self):
         if not self._path:
             return
         try:
-            os.makedirs(os.path.dirname(self._path), exist_ok=True)
-            tmp = self._path + ".tmp"
-            with open(tmp, "w") as f:
-                json.dump({"quit_combo": self.quit_combo}, f, indent=2)
-            os.replace(tmp, self._path)
+            storage.save(self._path, {"quit_combo": self.quit_combo})
         except OSError as e:
             log.warning("Could not save settings: %r", e)
