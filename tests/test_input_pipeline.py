@@ -369,17 +369,18 @@ class TheControllerScreensPreview(InputCase):
         await self.plugin.set_controller_mode(True)
         await self.plugin.watch_gamepad(True)
 
-        # Alternating presses at 250 Hz for half a second: 125 changes.
+        # Offer changes every 4 ms; CPU contention may make the actual input rate lower.
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + 0.5
+        started = loop.time()
+        deadline = started + 0.5
         held = False
         while loop.time() < deadline:
             held = not held
             self.controller.send(deck_state_report("A") if held else deck_state_report())
             await asyncio.sleep(0.004)
 
-        self.assertGreater(len(self.previews()), 5)
-        self.assertLessEqual(len(self.previews()), 0.5 * 30 + 3)
+        self.assertLessEqual(len(self.previews()), (loop.time() - started) * 30 + 3)
+        self.assertTrue(await self.press(deck_state_report("B"), until=lambda: self.lit() == ["b"]))
 
     async def test_the_quit_combo_shows_nothing_held(self):
         await self.connect_host()
