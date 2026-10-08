@@ -255,7 +255,6 @@ class ControllerMode:
         if self._interval_state_path:
             if os.geteuid() == 0:
                 connection_interval.restore_leftover(self._interval_state_path)
-            connection_interval.forget_leftover(self._interval_state_path)
         self._paired_hosts.erase()
         self._settings.erase()
         log.info("DeckPad uninstalled")

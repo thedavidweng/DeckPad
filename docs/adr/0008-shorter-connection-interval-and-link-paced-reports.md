@@ -6,6 +6,18 @@ While Controller Mode is on and Pairing Mode is not accepting new Hosts, DeckPad
 
 The Host picks the interval and may refuse the request. BlueZ's D-Bus API does not expose the interval either. DeckPad therefore reads it from the controller's HCI events (LE Connection Complete, Enhanced Connection Complete, Connection Update Complete, and Disconnect Complete) on a raw HCI socket filtered to those events. It sends at most one Gamepad Report per connection event of the slowest connected Host, plus a 15% margin. Until an interval is known, it sends at most one report every 60 ms.
 
+## Transaction safety
+
+The interval change is a recoverable transaction. `storage.save` atomically replaces and syncs the
+original-value record before MGMT is allowed to change the adapter. A successful set reply is followed
+by a readback. Lost replies and verification failures trigger restoration; if that fails, the record
+survives, including during uninstall. Restoration first reads the current range: an already-restored
+range is accepted, DeckPad's requested range may be restored, and any other range is left untouched
+with its recovery record retained. New requests cannot replace an unresolved record. MGMT packets
+must match their declared lengths, successful command completion, and well-formed, unique TLVs;
+interval values and persisted adapter indices are validated before use. This follows the
+[BlueZ management protocol](https://github.com/bluez/bluez/blob/master/doc/mgmt-protocol.rst).
+
 ## Considered options
 
 - **Keep the Host's interval (no request).** Robust, but it limits throughput to about 18 reports/s with roughly 55 ms between reports.

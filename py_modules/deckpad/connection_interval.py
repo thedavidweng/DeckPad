@@ -15,6 +15,7 @@ import struct
 import time
 
 from .hci_socket import HCI_CHANNEL_CONTROL, HCI_DEV_NONE, open_hci_socket
+from . import storage
 
 log = logging.getLogger("deckpad.connection_interval")
 
@@ -38,72 +39,108 @@ def open_mgmt_socket():
 class _Mgmt:
     def __init__(self, open_socket):
         self._sock = open_socket()
-        self._sock.settimeout(_TIMEOUT)
+        try:
+            self._sock.settimeout(_TIMEOUT)
+        except BaseException:
+            self._sock.close()
+            raise
 
     def close(self):
         self._sock.close()
 
     def command(self, opcode, index, params=b""):
         """Send one MGMT command and return its reply parameters. Raises OSError if the kernel refuses."""
-        self._sock.send(struct.pack("<HHH", opcode, index, len(params)) + params)
+        command = struct.pack("<HHH", opcode, index, len(params)) + params
+        if self._sock.send(command) != len(command):
+            raise OSError("Incomplete MGMT command write")
         deadline = time.monotonic() + _TIMEOUT
-        while time.monotonic() < deadline:
-            packet = self._sock.recv(1024)
-            if len(packet) < 9:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            self._sock.settimeout(remaining)
+            packet = self._sock.recv(65541)
+            if len(packet) < 6:
+                raise ValueError("Truncated MGMT header")
+            event, event_index, length = struct.unpack_from("<HHH", packet)
+            if length != len(packet) - 6:
+                raise ValueError("MGMT payload length mismatch")
+            if event not in (_EV_CMD_COMPLETE, _EV_CMD_STATUS) or event_index != index:
                 continue
-            event, event_index, _length = struct.unpack_from("<HHH", packet)
+            if length < 3 or (event == _EV_CMD_STATUS and length != 3):
+                raise ValueError("Invalid MGMT command response length")
             reply_opcode, status = struct.unpack_from("<HB", packet, 6)
-            if event not in (_EV_CMD_COMPLETE, _EV_CMD_STATUS) or reply_opcode != opcode or event_index != index:
+            if reply_opcode != opcode:
                 continue
             if status != 0:
                 raise OSError("MGMT command 0x%04x failed with status 0x%02x" % (opcode, status))
-            return packet[9:]
+            if event == _EV_CMD_COMPLETE:
+                return packet[9:]
         raise TimeoutError("MGMT command 0x%04x got no reply" % opcode)
 
     def read_conn_interval(self, index):
         tlvs = _parse_tlvs(self.command(_READ_DEF_SYSTEM_CONFIG, index))
-        return (tlvs[_LE_MIN_CONN_INTERVAL], tlvs[_LE_MAX_CONN_INTERVAL])
+        try:
+            interval = (tlvs[_LE_MIN_CONN_INTERVAL], tlvs[_LE_MAX_CONN_INTERVAL])
+        except KeyError as e:
+            raise ValueError("MGMT response lacks connection interval") from e
+        _validate_interval(interval)
+        return interval
 
     def set_conn_interval(self, index, interval):
         # The kernel checks nothing about the pair, so the order of the two values does not matter.
         params = struct.pack("<HBHHBH", _LE_MIN_CONN_INTERVAL, 2, interval[0], _LE_MAX_CONN_INTERVAL, 2, interval[1])
-        self.command(_SET_DEF_SYSTEM_CONFIG, index, params)
+        if self.command(_SET_DEF_SYSTEM_CONFIG, index, params):
+            raise ValueError("Unexpected MGMT set response parameters")
 
 
 def _parse_tlvs(data):
     values = {}
     offset = 0
-    while offset + 3 <= len(data):
+    seen = set()
+    while offset < len(data):
+        if offset + 3 > len(data):
+            raise ValueError("Truncated MGMT TLV header")
         kind, length = struct.unpack_from("<HB", data, offset)
+        if offset + 3 + length > len(data):
+            raise ValueError("Truncated MGMT TLV value")
+        if kind in seen:
+            raise ValueError("Duplicate MGMT TLV")
+        seen.add(kind)
+        if kind in (_LE_MIN_CONN_INTERVAL, _LE_MAX_CONN_INTERVAL) and length != 2:
+            raise ValueError("Invalid connection interval TLV length")
         if length == 2:
             (values[kind],) = struct.unpack_from("<H", data, offset + 3)
         offset += 3 + length
     return values
 
 
+def _validate_interval(interval):
+    if any(type(value) is not int for value in interval) or not 6 <= interval[0] <= interval[1] <= 3200:
+        raise ValueError("Invalid LE connection interval range")
+
+
 class IntervalRequest:
-    def __init__(self, index, previous, state_path, open_socket):
-        self._index = index
-        self._previous = previous
+    def __init__(self, state_path, open_socket):
         self._state_path = state_path
         self._open_socket = open_socket
 
     def restore(self):
         """Put the adapter's own range back. Synchronous and quick, so it is safe during plugin unload."""
-        if self._previous is None:
-            return
-        try:
-            _set(self._open_socket, self._index, self._previous)
-        except Exception as e:
-            log.warning("Could not restore the adapter's connection interval: %r", e)
-            return
-        self._previous = None
-        _forget(self._state_path)
+        if self._state_path is None:
+            return True
+        if not restore_leftover(self._state_path, self._open_socket):
+            return False
+        self._state_path = None
         log.info("Restored the adapter's connection interval")
+        return True
 
 
 def request(index, state_path, open_socket=open_mgmt_socket):
     """Ask hosts that connect from now on for the REQUESTED interval. Returns None if that is not possible."""
+    if os.path.exists(state_path) and not restore_leftover(state_path, open_socket):
+        log.warning("Cannot change connection interval: an earlier transaction is unresolved")
+        return None
     try:
         mgmt = _Mgmt(open_socket)
     except Exception as e:
@@ -114,14 +151,16 @@ def request(index, state_path, open_socket=open_mgmt_socket):
         if previous != REQUESTED:
             _remember(state_path, index, previous)
             mgmt.set_conn_interval(index, REQUESTED)
+            if mgmt.read_conn_interval(index) != REQUESTED:
+                raise OSError("Connection interval request verification failed")
     except Exception as e:
         log.warning("Could not request a shorter connection interval: %r", e)
-        _forget(state_path)
+        restore_leftover(state_path, open_socket)
         return None
     finally:
         mgmt.close()
     log.info("Hosts are asked for a %.2f-%.2f ms connection interval", REQUESTED[0] * 1.25, REQUESTED[1] * 1.25)
-    return IntervalRequest(index, previous if previous != REQUESTED else None, state_path, open_socket)
+    return IntervalRequest(state_path if previous != REQUESTED else None, open_socket)
 
 
 class ShorterInterval:
@@ -167,42 +206,37 @@ def restore_leftover(state_path, open_socket=open_mgmt_socket):
         with open(state_path) as f:
             saved = json.load(f)
         index, previous = saved["index"], (saved["min"], saved["max"])
+        if type(index) is not int or not 0 <= index < HCI_DEV_NONE:
+            raise ValueError("Invalid adapter index")
+        _validate_interval(previous)
     except FileNotFoundError:
         return False
     except Exception as e:
         log.warning("Ignoring unreadable %s: %r", state_path, e)
-        _forget(state_path)
         return False
     try:
-        _set(open_socket, index, previous)
+        _restore(open_socket, index, previous)
     except Exception as e:
         log.warning("Could not restore the adapter's connection interval: %r", e)
         return False
-    _forget(state_path)
+    storage.erase(state_path)
     return True
 
 
-def forget_leftover(state_path):
-    """Delete the saved range without restoring it (for uninstall, after restore_leftover had its chance)."""
-    _forget(state_path)
-
-
-def _set(open_socket, index, interval):
+def _restore(open_socket, index, interval):
     mgmt = _Mgmt(open_socket)
     try:
+        current = mgmt.read_conn_interval(index)
+        if current == interval:
+            return
+        if current != REQUESTED:
+            raise OSError("Connection interval changed outside DeckPad; refusing to overwrite it")
         mgmt.set_conn_interval(index, interval)
+        if mgmt.read_conn_interval(index) != interval:
+            raise OSError("Connection interval restore verification failed")
     finally:
         mgmt.close()
 
 
 def _remember(state_path, index, previous):
-    os.makedirs(os.path.dirname(state_path), exist_ok=True)
-    with open(state_path, "w") as f:
-        json.dump({"index": index, "min": previous[0], "max": previous[1]}, f)
-
-
-def _forget(state_path):
-    try:
-        os.unlink(state_path)
-    except FileNotFoundError:
-        pass
+    storage.save(state_path, {"index": index, "min": previous[0], "max": previous[1]})

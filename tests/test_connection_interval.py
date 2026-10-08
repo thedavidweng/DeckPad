@@ -8,6 +8,8 @@ the adapter's own values back afterwards, even if the plugin was killed in betwe
 import os
 import tempfile
 import unittest
+import json
+from unittest.mock import patch
 
 from deckpad import connection_interval
 
@@ -67,6 +69,93 @@ class RequestingAShorterInterval(unittest.TestCase):
         self.assertIsNone(self.request(index=3))
         self.assertEqual(self.kernel.conn_interval, (24, 40))
         self.assertFalse(os.path.exists(self.state_path))
+
+    def test_a_failed_save_never_changes_the_adapter(self):
+        with patch("os.replace", side_effect=PermissionError):
+            self.assertIsNone(self.request())
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+
+    def test_a_lost_set_response_is_rolled_back(self):
+        handle = self.kernel.handle
+
+        def lost_response(opcode, index, params):
+            response = handle(opcode, index, params)
+            if opcode == 0x004C and self.kernel.conn_interval == REQUESTED:
+                raise TimeoutError("response lost after apply")
+            return response
+
+        with patch.object(self.kernel, "handle", side_effect=lost_response):
+            self.assertIsNone(self.request())
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+        self.assertFalse(os.path.exists(self.state_path))
+
+    def test_a_success_reply_without_a_setting_change_is_not_success(self):
+        handle = self.kernel.handle
+
+        def ignored_set(opcode, index, params):
+            if opcode == 0x004C:
+                return bytes.fromhex("0100000003004c0000")
+            return handle(opcode, index, params)
+
+        with patch.object(self.kernel, "handle", side_effect=ignored_set):
+            self.assertIsNone(self.request())
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+
+    def test_a_failed_request_with_failed_rollback_keeps_the_original_record(self):
+        handle = self.kernel.handle
+
+        def lost_response(opcode, index, params):
+            response = handle(opcode, index, params)
+            if opcode == 0x004C:
+                self.kernel.refuse = True
+                raise TimeoutError("response lost after apply")
+            return response
+
+        with patch.object(self.kernel, "handle", side_effect=lost_response):
+            self.assertIsNone(self.request())
+        with open(self.state_path) as f:
+            self.assertEqual(json.load(f), {"index": 0, "min": 24, "max": 40})
+        self.kernel.refuse = False
+        self.assertTrue(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+
+    def test_restore_requires_readback_before_removing_the_record(self):
+        request = self.request()
+        handle = self.kernel.handle
+
+        def ignored_set(opcode, index, params):
+            if opcode == 0x004C:
+                return bytes.fromhex("0100000003004c0000")
+            return handle(opcode, index, params)
+
+        with patch.object(self.kernel, "handle", side_effect=ignored_set):
+            self.assertIs(request.restore(), False)
+        self.assertEqual(self.kernel.conn_interval, REQUESTED)
+        self.assertTrue(os.path.exists(self.state_path))
+
+    def test_restore_does_not_overwrite_another_programs_change(self):
+        request = self.request()
+        self.kernel.config[0x0017], self.kernel.config[0x0018] = 32, 48
+        self.assertIs(request.restore(), False)
+        self.assertEqual(self.kernel.conn_interval, (32, 48))
+        self.assertTrue(os.path.exists(self.state_path))
+
+    def test_failed_restore_keeps_the_record_for_a_later_retry(self):
+        request = self.request()
+        self.kernel.refuse = True
+        self.assertIs(request.restore(), False)
+        self.assertTrue(os.path.exists(self.state_path))
+        self.kernel.refuse = False
+        self.assertTrue(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
+        self.assertEqual(self.kernel.conn_interval, (24, 40))
+
+    def test_an_unresolved_transaction_is_not_replaced_by_a_new_request(self):
+        self.request()
+        self.kernel.config[0x0017], self.kernel.config[0x0018] = 32, 48
+        self.assertIsNone(self.request())
+        self.assertEqual(self.kernel.conn_interval, (32, 48))
+        with open(self.state_path) as f:
+            self.assertEqual(json.load(f), {"index": 0, "min": 24, "max": 40})
 
 
 class NotWhilePairing(unittest.TestCase):
@@ -142,6 +231,31 @@ class AfterThePluginWasKilled(unittest.TestCase):
     def test_nothing_to_restore_on_a_first_start(self):
         self.assertFalse(connection_interval.restore_leftover(self.state_path, open_socket=self.kernel.open_socket))
         self.assertEqual(self.kernel.sockets_opened, 0)
+
+    def test_an_invalid_record_is_preserved_without_system_writes(self):
+        for value in (True, -1, 65536, "24"):
+            with self.subTest(value=value):
+                with open(self.state_path, "w") as f:
+                    json.dump({"index": 0, "min": value, "max": 40}, f)
+                self.assertFalse(connection_interval.restore_leftover(self.state_path, self.kernel.open_socket))
+                self.assertEqual(self.kernel.sockets_opened, 0)
+                self.assertTrue(os.path.exists(self.state_path))
+
+
+class MgmtValidation(unittest.TestCase):
+    def test_malformed_tlvs_are_rejected(self):
+        for data in (b"\x17", bytes.fromhex("1700020c"), bytes.fromhex("1700010c"),
+                     bytes.fromhex("1700020c001700020d00")):
+            with self.subTest(data=data), self.assertRaises(ValueError):
+                connection_interval._parse_tlvs(data)
+
+    def test_malformed_replies_are_rejected(self):
+        for packet in (bytes.fromhex("0100000004004b0000"), bytes.fromhex("0100000002004b00"),
+                       bytes.fromhex("0200000004004b000001")):
+            kernel = FakeMgmtKernel()
+            with self.subTest(packet=packet), patch.object(kernel, "handle", return_value=packet):
+                with self.assertRaises(ValueError):
+                    connection_interval.current(0, kernel.open_socket)
 
 
 if __name__ == "__main__":

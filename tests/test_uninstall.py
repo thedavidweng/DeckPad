@@ -58,19 +58,23 @@ class UninstallingDeckPad(ConnectionsCase):
         self.assertNotIn(("RemoveDevice", self.headphones.path), self.bluez.calls)
 
     async def test_it_deletes_deckpad_s_files(self):
-        # Left by a killed run; restoring it needs root, which the tests do not have.
-        interval_state = os.path.join(self.decky.DECKY_PLUGIN_RUNTIME_DIR, "connection_interval.json")
-        os.makedirs(self.decky.DECKY_PLUGIN_RUNTIME_DIR, exist_ok=True)
-        with open(interval_state, "w") as f:
-            f.write('{"index": 0, "min": 24, "max": 40}')
         await self.plugin.set_quit_combo(False)
 
         await self.uninstall()
 
-        self.assertFalse(os.path.exists(interval_state))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_LOG_DIR, "diagnostics.txt")))
+
+    async def test_it_keeps_an_interval_record_when_restoration_is_not_permitted(self):
+        interval_state = os.path.join(self.decky.DECKY_PLUGIN_RUNTIME_DIR, "connection_interval.json")
+        os.makedirs(self.decky.DECKY_PLUGIN_RUNTIME_DIR, exist_ok=True)
+        saved = '{"index": 0, "min": 24, "max": 40}'
+        with open(interval_state, "w") as f:
+            f.write(saved)
+        await self.uninstall()
+        with open(interval_state) as f:
+            self.assertEqual(f.read(), saved)
 
     async def test_it_leaves_bluetooth_as_it_was_before_deckpad(self):
         await self.uninstall()
