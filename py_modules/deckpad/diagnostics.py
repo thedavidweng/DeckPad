@@ -7,6 +7,7 @@ import asyncio
 import collections
 import logging
 import os
+import re
 import sys
 import time
 
@@ -14,7 +15,7 @@ from . import bluez, connection_interval, deck_controls, device_id, errors, iden
 
 log = logging.getLogger("deckpad.diagnostics")
 
-QUERY_TIMEOUT = 3.0
+QUERY_TIMEOUT = bluez.CALL_TIMEOUT
 LOG_LINES = 150
 
 
@@ -93,12 +94,10 @@ async def collect(controller_mode, version=None):
     adapter = bt.get("adapter")
     if adapter is not None:
         lines.append(
-            "Adapter: %s %s, powered %s, alias %s, modalias %s"
+            "Adapter: %s, powered %s, modalias %s"
             % (
                 bt["adapter_path"],
-                adapter.get("Address"),
                 _yes(adapter.get("Powered")),
-                adapter.get("Alias"),
                 adapter.get("Modalias"),
             )
         )
@@ -107,20 +106,33 @@ async def collect(controller_mode, version=None):
     lines.append("Controller Identity override: %s" % _identity_detail(root, bt))
     lines.append("Shorter connection interval: %s" % _interval_detail(root, bt))
     lines.append("Paired Hosts: %d" % len(snapshot["hosts"]))
-    for host in snapshot["hosts"]:
+    for index, host in enumerate(snapshot["hosts"], 1):
         link = "connected" if host["connected"] else "not connected"
-        lines.append("  %s %s (%s)" % (host["address"], host["name"] or "(no name yet)", link))
+        lines.append("  Host %d (%s)" % (index, link))
     if state["errors"]:
         last = state["errors"][-1]
-        lines.append("Last error: %s: %s" % (last.code, last.detail or last.message))
+        lines.append("Last error: %s: %s" % (last.code, last.detail or last.code))
         lines.append("Recent errors:")
         for error in state["errors"]:
-            lines.append("  %s %s: %s" % (_time(error.occurred_at), error.code, error.detail or error.message))
+            lines.append("  %s %s: %s" % (_time(error.occurred_at), error.code, error.detail or error.code))
     else:
         lines.append("Last error: none")
     lines.append("Recent log:")
     lines.extend("  " + line for line in RECENT_LOG.lines)
-    return {"summary": summary, "text": "\n".join(lines) + "\n"}
+    labels = {host["address"]: "Host %d" % index for index, host in enumerate(snapshot["hosts"], 1)}
+    if adapter is not None and adapter.get("Address"):
+        labels[adapter["Address"]] = "Adapter"
+    return {"summary": summary, "text": _redact_addresses("\n".join(lines) + "\n", labels)}
+
+
+def _redact_addresses(text, labels):
+    def replace(match):
+        address = match[0].replace("_", ":").replace("-", ":").upper()
+        if address not in labels:
+            labels[address] = "Device %d" % (len(labels) + 1)
+        return labels[address]
+
+    return re.sub(r"(?i)(?:[0-9a-f]{2}[:_-]){5}[0-9a-f]{2}", replace, text)
 
 
 async def _bluetooth(root):
@@ -128,8 +140,10 @@ async def _bluetooth(root):
         result = {"running": True}
         try:
             result["pid"] = await bluez.service_pid(bus)
-        except bluez.BluezError:
-            return {"running": False}
+        except bluez.BluezError as e:
+            if e.name in ("org.freedesktop.DBus.Error.NameHasNoOwner", "org.freedesktop.DBus.Error.ServiceUnknown"):
+                return {"running": False}
+            raise
         try:
             result["adapter_path"], result["adapter"] = await bluez.find_adapter(bus)
         except errors.ControllerModeError as e:
@@ -138,13 +152,13 @@ async def _bluetooth(root):
         modalias = result["adapter"].get("Modalias")
         if root:
             try:
-                result["device_id"] = device_id.current(result["pid"], modalias, identity.DEVICE_ID)
+                result["device_id"] = await asyncio.to_thread(device_id.current, result["pid"], modalias, identity.DEVICE_ID)
             except Exception as e:
                 log.info("Could not read bluetoothd's DeviceID: %r", e)
             index = bluez.adapter_index(result["adapter_path"])
             if index is not None:
                 try:
-                    result["interval"] = connection_interval.current(index)
+                    result["interval"] = await asyncio.to_thread(connection_interval.current, index)
                 except Exception as e:
                     log.info("Could not read the adapter's connection interval: %r", e)
         return result

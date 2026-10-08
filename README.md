@@ -97,6 +97,7 @@ pairings made through DeckPad and DeckPad's own files. Details: [docs/system-cha
 Expand **Troubleshooting** in the panel for a diagnostics report, and attach it when you
 [report an issue](https://github.com/thedavidweng/DeckPad/issues). Common problems and every error
 message: [docs/troubleshooting.md](docs/troubleshooting.md).
+Reports replace Bluetooth addresses with consistent labels and omit Host names and the adapter alias.
 
 <img src="docs/screenshots/qam-troubleshooting.png" width="320" alt="The Troubleshooting section with the diagnostics summary">
 
