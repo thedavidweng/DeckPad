@@ -112,8 +112,7 @@ send failures or prove that every such warning had the same source.
 Two regression tests first failed against the old implementation and then passed. The full Linux
 Python 3.12 suite passed **327 tests**, the related Bluetooth/lifecycle subset passed 36, and Ruff and
 whitespace checks passed. Deployed the changed `bluez.py` on top of the verified archive and reloaded
-DeckPad; the installed backend now includes this patch, while `out/DeckPad.zip` still contains the
-earlier code revision and must be rebuilt before release.
+DeckPad. Subsequently rebuilt and deployed the complete archive as recorded below.
 
 A subsequent real Bluetooth restart recovered to ON with no unobserved-Future warning in that run;
 the Host was not HID-subscribed, so this is not proof of cleanup with active input delivery. Separately,
@@ -121,6 +120,20 @@ stopping Bluetooth produced RECOVERING; setting Controller Mode OFF canceled rec
 Bluetooth started again, DeckPad stayed OFF. Independent reads of the new daemon confirmed BlueZ's
 own identity, interval 24–40 and no recovery journal. Pairing records remained present. Active Host
 input/reconnect and unrelated peripheral coexistence still require their own acceptance checks.
+
+### Current packaged artifact
+
+Rebuilt clean source revision `a623a4e` with official Decky CLI 0.0.7 and its builder container.
+`out/DeckPad.zip` now includes the Disconnect write-result fix. The 81-file verifier passed, including
+byte-for-byte backend and notice comparison, API v1/root metadata, archive integrity and exclusion of
+binary extensions and bytecode. SHA-256:
+`723a1db8fbfc2dde9cf26b31d8451c34040642f1c81fde6971d4fb1b17122e77`.
+
+Deployed this complete archive to the existing LCD installation and verified every deployed archive
+file. Official individual-plugin reload succeeded; diagnostics from the new embedded Python 3.11.7
+process report OFF, no error, BlueZ's own identity and interval 24–40. The Host record and Quit Combo
+setting survive. TypeScript typecheck and all 14 frontend tests passed again. The temporary build VM
+was removed and the original Docker context restored. No push or Store submission was performed.
 
 ## Module review
 
