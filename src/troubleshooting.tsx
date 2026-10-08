@@ -1,14 +1,6 @@
 import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
-import { callable } from "@decky/api";
 import { useState } from "react";
-
-interface Diagnostics {
-  summary: [string, string][];
-  text: string;
-  path: string | null;
-}
-
-const getDiagnostics = callable<[], Diagnostics>("get_diagnostics");
+import { Diagnostics, getDiagnostics } from "./backend";
 
 // Steam's CEF exposes no clipboard API to plugins, and navigator.clipboard needs a focused secure
 // context that the QAM often is not, so copy through a temporary text area first.

@@ -54,6 +54,14 @@ export const forgetHost = callable<[address: string], ControllerModeState>("forg
 export const allowReconnect = callable<[], ControllerModeState>("allow_reconnect");
 export const setQuitCombo = callable<[enabled: boolean], ControllerModeState>("set_quit_combo");
 
+export interface Diagnostics {
+  summary: [string, string][];
+  text: string;
+  path: string | null;
+}
+
+export const getDiagnostics = callable<[], Diagnostics>("get_diagnostics");
+
 // Sticks run from -1 to 1 with Y pointing down; triggers from 0 to 1.
 export interface GamepadPreview {
   buttons: string[];
@@ -65,6 +73,14 @@ export interface GamepadPreview {
 
 const GAMEPAD_EVENT = "gamepad_report";
 const watchGamepad = callable<[enabled: boolean], void>("watch_gamepad");
+let previewSubscribers = 0;
+let previewUpdates = Promise.resolve();
+
+function setPreviewWatching(enabled: boolean) {
+  previewUpdates = previewUpdates
+    .then(() => watchGamepad(enabled))
+    .catch((error: unknown) => console.error("Could not update Gamepad Preview subscription", error));
+}
 
 // Holds the latest payload of `event` while `active`. `subscribed` runs once the listener is in place
 // and may return its own cleanup.
@@ -80,9 +96,17 @@ function useBackendEvent<T>(
       setValue(null);
       return;
     }
-    const listener = addEventListener<[T]>(event, setValue);
-    const cleanup = subscribed(setValue);
+    let current = true;
+    let receivedEvent = false;
+    const listener = addEventListener<[T]>(event, (payload) => {
+      receivedEvent = true;
+      if (current) setValue(payload);
+    });
+    const cleanup = subscribed((initial) => {
+      if (current && !receivedEvent) setValue(initial);
+    });
     return () => {
+      current = false;
       removeEventListener(event, listener);
       cleanup?.();
     };
@@ -94,14 +118,19 @@ function useBackendEvent<T>(
 // The backend only forwards reports while someone watches, so keep watching just as long as `active`.
 export function useGamepadPreview(active: boolean): GamepadPreview | null {
   return useBackendEvent<GamepadPreview>(GAMEPAD_EVENT, active, () => {
-    watchGamepad(true).catch(() => {});
-    return () => watchGamepad(false).catch(() => {});
+    if (++previewSubscribers === 1) setPreviewWatching(true);
+    return () => {
+      if (--previewSubscribers === 0) setPreviewWatching(false);
+    };
   });
 }
 
 export function useControllerModeState(): ControllerModeState | null {
   return useBackendEvent<ControllerModeState>(STATE_EVENT, true, (set) => {
-    getState().then(set).catch(() => set(null));
+    getState().then(set).catch((error: unknown) => {
+      console.error("Could not read Controller Mode state", error);
+      set(null);
+    });
   });
 }
 
