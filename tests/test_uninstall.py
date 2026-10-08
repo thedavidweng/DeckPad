@@ -58,6 +58,15 @@ class UninstallingDeckPad(ConnectionsCase):
         self.assertTrue(self.headphones.connected)
         self.assertNotIn(("RemoveDevice", self.headphones.path), self.bluez.calls)
 
+    async def test_reading_public_gatt_values_does_not_make_an_unrelated_device_a_host(self):
+        await self.bluez.host_reads("2a50", device=self.headphones.path)
+
+        await self.uninstall()
+
+        self.assertTrue(self.headphones.connected)
+        self.assertNotIn(self.headphones.path, self.bluez.disconnect_requests)
+        self.assertNotIn(("RemoveDevice", self.headphones.path), self.bluez.calls)
+
     async def test_it_deletes_deckpad_s_files(self):
         await self.plugin.set_quit_combo(False)
 

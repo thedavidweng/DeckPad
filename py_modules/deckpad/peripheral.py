@@ -307,7 +307,7 @@ class Peripheral:
         return allowed
 
     def _host_seen(self, path):
-        if path not in self._hosts:
+        if path not in self._hosts and self._allow_service(path):
             self._hosts.add(path)
             if self._devices.get(path, {}).get("Connected"):
                 self._listener.report_target_changed()
