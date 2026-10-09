@@ -3,7 +3,7 @@
 What has been checked on real hardware, and what is still open, so a decision record can point at one
 place.
 
-## Current reliability audit — updated 2026-10-08
+## Current reliability audit — updated 2026-10-09
 
 Every code change was committed independently after relevant tests passed. No commit was pushed.
 
@@ -27,6 +27,12 @@ The current [Store addition template](https://github.com/SteamDeckHomebrew/decky
 
 The final gates remain open. Use the current audit results together with the historical evidence below;
 do not label this revision hardware-verified or Store-approved.
+
+The [MagicPods Bluetooth comparison](magicpods-bluetooth-comparison.md) records the 2026-10-09
+fresh-pairing regression: both the rewrite and the byte-verified original release failed today.
+The Deck had resumed from suspend before testing. After an adapter power cycle the user reported
+a persistent connection, but initial backend and native Mac readback did not yet confirm pairing
+or HID input. Treat that result as unresolved, rather than a verified fix or a rewrite-only failure.
 
 ### Fresh LCD checks — 2026-10-07, Stable
 
