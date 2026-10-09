@@ -87,11 +87,13 @@ DeckPad `bluetooth_watch.py`, `controller_mode.py`, `connections.py` and `periph
   is evidence for a controlled suspend comparison, not causation.
 - Restored the rewrite and verified all 81 archive files. With Controller Mode OFF,
   BlueZ's official power interface successfully changed the adapter from false to true.
-  The user then reported a persistent connection. The initial independent readback still
-  showed zero Hosts and zero native Mac controllers. A subsequent readback reached
+  The user initially reported a persistent connection, then corrected that observation:
+  it had not connected. Independent readback showed zero Hosts and zero native Mac
+  controllers. A subsequent readback reached
   `pairing_timed_out` with zero Hosts; the completed 240-second Deck capture contains no
   LE connection-established, SMP or ATT exchange events. Successful HID pairing/input
-  remains unconfirmed until reconciled with the user's report.
+  failed; the native observer completed with zero controllers. The adapter power cycle
+  did not fix this attempt.
 
 Local evidence: `/tmp/deckpad-fresh-pair-20261009.txt`,
 `/tmp/deckpad-clean-session-pair-20261009.txt`,

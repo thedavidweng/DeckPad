@@ -30,9 +30,9 @@ do not label this revision hardware-verified or Store-approved.
 
 The [MagicPods Bluetooth comparison](magicpods-bluetooth-comparison.md) records the 2026-10-09
 fresh-pairing regression: both the rewrite and the byte-verified original release failed today.
-The Deck had resumed from suspend before testing. After an adapter power cycle the user reported
-a persistent connection, but initial backend and native Mac readback did not yet confirm pairing
-or HID input. Treat that result as unresolved, rather than a verified fix or a rewrite-only failure.
+The Deck had resumed from suspend before testing. An adapter power cycle also failed: the user
+corrected the initial connection-success report, and backend, HCI capture and native Mac observer
+agree that no pairing or HID attachment occurred. This is not a verified fix or a rewrite-only failure.
 
 ### Fresh LCD checks — 2026-10-07, Stable
 
