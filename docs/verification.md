@@ -17,7 +17,7 @@ Every code change was committed independently after relevant tests passed. No co
 | Actual official Decky CLI 0.0.7 ZIP | Final revision: 81 files verified, including backend bytes, API/root metadata and vendored licenses |
 | GitHub Actions | Workflow configured for Python 3.11/3.12, frontend checks, static checks and official packaging; not run remotely because nothing was pushed |
 | Decky embedded Python 3.11.7 | Current archive loaded on LCD, Decky 3.2.10; dbus-fast 5.2.0, real GATT registration, hidraw input reader and MGMT calls succeeded |
-| Steam Deck LCD: startup, pairing, controls, reconnect, exit, uninstall | Fresh Mac pairing, core buttons, axes, triggers, L3/R3/Share, retained-bond reconnection and Quit Combo exit verified below; Guide encoded on transport but no Mac application callback; repeated manual Connect failures, active-input recovery and revised uninstall remain open |
+| Steam Deck LCD: startup, pairing, controls, reconnect, exit, uninstall | Fresh Mac pairing, core buttons, axes, triggers, L3/R3/Share, retained-bond reconnection, Quit Combo exit and connected-Host official uninstall verified below; Guide encoded on transport but no Mac application callback; repeated manual Connect failures and active-input recovery remain open |
 | Gaming Mode QAM, focus capture, Steam/QAM buttons, all menu restoration paths, diagnostics copy | Real panel and Controller Screen inspected; user confirms focus behavior and Quit Combo menu restoration; copied diagnostics match saved contents; Close, Quit Combo disabled, reload/unload and chord routes remain open |
 | Official Plugin Store testing and review | Not submitted or approved; third-party Stable/Beta reports and code-provenance eligibility remain open |
 
@@ -362,6 +362,37 @@ The real `QuickAccess_uid2` clipboard context is secure, currently unfocused, ex
 `navigator.clipboard`, grants `clipboard-write`, and reports legacy copy support. These read-only
 capability checks do not identify the write path used by the successful earlier copy or establish
 that either current copy path is redundant. No clipboard branch is removed on that evidence.
+
+### Official uninstall with connected Mac — 2026-10-08
+
+Before uninstall, the rewritten backend is ON, the Mac is connected and HID-subscribed, diagnostics
+record 12,123 delivered reports at 15 ms, and Controller Screen is closed. The already verified
+archive is staged outside installed plugins for reinstallation. Call `utilities/uninstall_plugin`
+with `DeckPad`, the same backend route used by Decky's uninstall modal. Client elapsed time is
+2,430.8 ms; the actual Loader journal records the plugin stopped in 2.4 seconds, below its five-second
+stop deadline. The journal records backend stop and uninstall, with no forced-kill line in that check.
+
+Independent post-uninstall checks confirm old PID `93685` is gone; the installed plugin directory,
+paired-host record, Quit Combo settings, diagnostics file and interval recovery record are absent.
+BlueZ no longer exports the Mac's device object and has zero paired devices. Read-only memory scan
+finds one original BlueZ DeviceID and zero Xbox replacements; MGMT reads interval 24–40 on index 1,
+and BlueZ reports zero advertising instances. Frontend inspection finds zero DeckPad plugin instances,
+zero controller routes, no DeckPad event subscriptions and enabled Steam menus.
+
+No unrelated peripheral was paired to the Deck, so real coexistence/isolation remains unverified;
+its behavior tests are separate evidence. This successful run does not measure unavailable-Bluetooth
+or failed-restoration uninstall timing, or menu restoration from an open Controller Screen.
+Artifacts: `/tmp/deckpad-uninstall-before.json`, `/tmp/deckpad-uninstall-result.json`,
+`/tmp/deckpad-uninstall-readback.json` and `/tmp/deckpad-uninstall-frontend.json`.
+
+Reinstalled the same archive by moving its verified extracted files into the plugin directory and
+using official `utilities/enable_plugin` registration. All 81 deployed files match the archive,
+with generated probe bytecode removed before deployment. The embedded Python 3.11.7 backend starts
+OFF without error, with inactive override, original interval, zero Hosts and default Quit Combo on;
+the frontend again has one instance, one route and enabled menus. Settings and bond keys are not
+restored after uninstall. The Mac retains its own stale bond and needs fresh pairing.
+Artifact: `/tmp/deckpad-after-uninstall-reinstall.json`. This is local reinstallation of the verified
+archive, not a Store installation or third-party approval.
 
 ### Adapter renumbering and interval recovery
 

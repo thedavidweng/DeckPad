@@ -57,4 +57,6 @@ The interval recovery record is deleted only after verified restoration. If rest
 including lack of permission, it remains in Decky's runtime directory for diagnosis and a later retry.
 The uninstall worker shares one three-second deadline for pairing removal and leftover DeviceID
 restoration, and never rewrites the Host file being deleted. Synchronous interval restoration follows;
-the revised shutdown timing still needs measurement in Decky's embedded process.
+the revised path stopped in 2.4 seconds in Decky's actual embedded process with a connected Mac,
+below Loader's five-second stop deadline ([verification](verification.md)). Unavailable-Bluetooth
+and failed-restoration uninstall timing still need their own hardware checks.
