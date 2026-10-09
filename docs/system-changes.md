@@ -58,5 +58,6 @@ including lack of permission, it remains in Decky's runtime directory for diagno
 The uninstall worker shares one three-second deadline for pairing removal and leftover DeviceID
 restoration, and never rewrites the Host file being deleted. Synchronous interval restoration follows;
 the revised path stopped in 2.4 seconds in Decky's actual embedded process with a connected Mac,
-below Loader's five-second stop deadline ([verification](verification.md)). Unavailable-Bluetooth
-and failed-restoration uninstall timing still need their own hardware checks.
+below Loader's five-second stop deadline ([verification](verification.md)). With Bluetooth confirmed
+unavailable and zero Hosts, it stopped in 0.1 seconds and cleaned up its files. Existing inaccessible
+pairings and failed-restoration uninstall timing still need their own hardware checks.

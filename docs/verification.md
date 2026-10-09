@@ -394,6 +394,31 @@ restored after uninstall. The Mac retains its own stale bond and needs fresh pai
 Artifact: `/tmp/deckpad-after-uninstall-reinstall.json`. This is local reinstallation of the verified
 archive, not a Store installation or third-party approval.
 
+### Uninstall while Bluetooth is unavailable — 2026-10-08
+
+Stopping Bluetooth alone triggers automatic service activation in this environment. The first
+attempt therefore uninstalls during RECOVERING with a newly running bluetoothd; its 109.8 ms result
+does not verify unavailable-Bluetooth behavior. To establish that condition, temporarily mask only
+`bluetooth.service` and its `dbus-org.bluez.service` alias with systemd `--runtime`, then stop the
+service. Both runtime masks were absent before the test. `is-active` reports inactive, `MainPID` is
+zero, and genuine embedded-runtime diagnostics show RECOVERING and `Bluetooth service: not running`.
+Diagnostics generation itself succeeds in that state.
+
+The official uninstall call completes in 109.8 ms; Loader records stop in 0.1 seconds. The plugin
+directory, settings/Host records, saved diagnostics and interval journal are absent afterward, while
+bluetoothd's PID is still zero. The frontend has zero plugin instances and controller routes and
+enabled menus. There were zero Hosts: this verifies bounded uninstall and file/frontend cleanup
+without Bluetooth, not removal of an existing inaccessible pairing.
+
+Both temporary masks are removed in the test orchestration's `finally` cleanup, and Bluetooth is
+started again. Independent readback confirms an active daemon with one original DeviceID, zero
+Xbox overrides, interval 24–40, no runtime masks, and the original enabled service configuration.
+Reinstall the identical 81-file package and register through official `utilities/enable_plugin`;
+the embedded backend again starts OFF without error or retained Hosts. No permanent service-unit
+change is made. Failed-restoration uninstall timing remains unverified on hardware.
+Artifacts: `/tmp/deckpad-uninstall-masked-before.json`, `-result.json`, `-readback.json`,
+`-restored.json` and `-reinstalled.json`, with the common `/tmp/deckpad-uninstall-masked` prefix.
+
 ### Adapter renumbering and interval recovery
 
 After the interrupted run, kernel logs at 23:47:21 record a USB reset and reinitialization of the
