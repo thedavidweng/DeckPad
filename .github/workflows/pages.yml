@@ -9,10 +9,7 @@ on:
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
@@ -20,6 +17,10 @@ concurrency:
 
 jobs:
   deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     timeout-minutes: 60
     runs-on: ubuntu-latest
     environment:
