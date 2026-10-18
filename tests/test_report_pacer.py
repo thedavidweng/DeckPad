@@ -27,6 +27,18 @@ class Link:
         return True
 
 
+class FailingOnceLink(Link):
+    def __init__(self):
+        super().__init__()
+        self.fail = True
+
+    def send(self, report):
+        if self.fail:
+            self.fail = False
+            raise OSError("link disappeared")
+        return super().send(report)
+
+
 class PacingGamepadReports(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.link = Link()
@@ -96,6 +108,17 @@ class PacingGamepadReports(unittest.IsolatedAsyncioTestCase):
         self.pacer.offer(b"A")
 
         self.assertEqual(self.link.sent, [b"A"])
+
+    async def test_a_send_error_is_retried_when_the_state_is_offered_again(self):
+        link = FailingOnceLink()
+        pacer = ReportPacer(link.send, INTERVAL)
+        self.addCleanup(pacer.close)
+
+        pacer.offer(b"A")
+        pacer.offer(b"A")
+        await asyncio.sleep(INTERVAL * 1.5)
+
+        self.assertEqual(link.sent, [b"A"])
 
     async def test_the_pace_follows_what_the_link_carries_now(self):
         link_interval = [INTERVAL]
