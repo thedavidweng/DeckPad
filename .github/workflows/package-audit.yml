@@ -32,6 +32,7 @@ jobs:
       - name: Build with official Decky Rollup
         run: pnpm install --frozen-lockfile && pnpm build
       - name: Package README inputs and summarize
+        shell: bash
         run: |
           mkdir -p out/DeckPad
           cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
@@ -39,6 +40,7 @@ jobs:
           python3 scripts/package-summary.py out/DeckPad.zip | tee package-summary.md
           cat package-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Hosted import and construction timing (not Deck startup)
+        shell: bash
         run: |
           python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import time
