@@ -329,13 +329,13 @@ class TheControllerScreensPreview(InputCase):
         await self.plugin.set_controller_mode(True)
         await self.plugin.watch_gamepad(True)
 
-        # Alternating presses at 250 Hz for half a second: 125 changes.
+        # A continuous sweep cannot alias to unchanged state at the slower report/preview rates.
         loop = asyncio.get_running_loop()
         deadline = loop.time() + 0.5
-        held = False
+        n = 0
         while loop.time() < deadline:
-            held = not held
-            self.controller.send(deck_state_report("A") if held else deck_state_report())
+            self.controller.send(deck_state_report(lx=n * 100 - 30000))
+            n += 1
             await asyncio.sleep(0.004)
 
         self.assertGreater(len(self.previews()), 5)
