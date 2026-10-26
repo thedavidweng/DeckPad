@@ -3,9 +3,11 @@ and observed from BlueZ's side of the system bus."""
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from deckpad.bluetooth_watch import BluetoothWatch
 from deckpad.peripheral import Peripheral
+from deckpad.connections import Connections
 
 from tests.support.fake_bluez import STEAM_AGENT
 from tests.support.plugin_case import PluginTestCase
@@ -133,6 +135,76 @@ class UnloadingThePlugin(PluginTestCase):
 
         await asyncio.wait_for(self.plugin._unload(), 20)
 
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
+
+class InterruptedLifecycle(PluginTestCase):
+    async def test_cancelled_transition_publication_releases_the_session(self):
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                if not enabled:
+                    await self.plugin.set_controller_mode(True)
+                entered = asyncio.Event()
+
+                async def pending(_):
+                    entered.set()
+                    await asyncio.Future()
+
+                with patch.object(self.plugin._controller_mode, "_on_change", pending):
+                    task = asyncio.create_task(self.plugin.set_controller_mode(enabled))
+                    await entered.wait()
+                    task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await task
+                self.assertEqual((await self.state())["status"], "off")
+                self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
+    async def test_unload_during_final_startup_cannot_turn_controller_mode_back_on(self):
+        async def unload(_):
+            self.plugin._controller_mode.shutdown()
+
+        with patch.object(Connections, "reconcile", unload):
+            state = await self.plugin.set_controller_mode(True)
+        self.assertEqual(state["status"], "off")
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
+    async def test_cancelled_start_releases_registered_resources_and_can_restart(self):
+        entered = asyncio.Event()
+        start = Peripheral.start
+
+        async def pending(session):
+            await start(session)
+            entered.set()
+            await asyncio.Future()
+
+        with patch.object(Peripheral, "start", pending):
+            task = asyncio.create_task(self.plugin.set_controller_mode(True))
+            await entered.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        self.assertEqual((await self.state())["status"], "off")
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+        self.assertEqual(self.decky.events[-1][1]["status"], "off")
+        self.assertTrue((await self.plugin.set_controller_mode(True))["enabled"])
+
+    async def test_failure_after_input_starts_releases_input_and_registrations(self):
+        with patch.object(Connections, "reconcile", side_effect=RuntimeError("input startup failed")):
+            state = await self.plugin.set_controller_mode(True)
+        self.assertEqual(state["status"], "off")
+        self.assertEqual(state["error"]["code"], "start_failed")
+        self.assertIsNone(state["controls"])
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
+    async def test_cancelling_stop_settles_off_and_releases_resources(self):
+        await self.plugin.set_controller_mode(True)
+        self.bluez.hang_unregister = True
+        task = asyncio.create_task(self.plugin.set_controller_mode(False))
+        await asyncio.sleep(0.02)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertEqual((await self.state())["status"], "off")
         self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
 
 

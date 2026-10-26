@@ -1,14 +1,6 @@
 import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
-import { callable } from "@decky/api";
-import { useState } from "react";
-
-interface Diagnostics {
-  summary: [string, string][];
-  text: string;
-  path: string | null;
-}
-
-const getDiagnostics = callable<[], Diagnostics>("get_diagnostics");
+import { useEffect, useRef, useState } from "react";
+import { Diagnostics, getDiagnostics } from "./backend";
 
 // Steam's CEF exposes no clipboard API to plugins, and navigator.clipboard needs a focused secure
 // context that the QAM often is not, so copy through a temporary text area first.
@@ -40,32 +32,40 @@ export function Troubleshooting() {
   const [open, setOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const request = useRef(0);
 
   const refresh = async () => {
+    const current = ++request.current;
     setStatus(null);
     try {
-      setDiagnostics(await getDiagnostics());
+      const result = await getDiagnostics();
+      if (current === request.current) setDiagnostics(result);
     } catch {
-      setDiagnostics(null);
-      setStatus("DeckPad is not responding. Reload it from Decky's settings.");
+      if (current === request.current) {
+        setDiagnostics(null);
+        setStatus("DeckPad is not responding. Reload it from Decky's settings.");
+      }
     }
   };
 
-  const toggle = () => {
-    if (!open) refresh();
-    setOpen(!open);
-  };
+  useEffect(() => {
+    if (open) void refresh();
+    return () => { ++request.current; };
+  }, [open]);
 
   const copy = async () => {
     if (!diagnostics) return;
+    const current = request.current;
     const copied = await copyText(diagnostics.text);
-    setStatus(copied ? "Copied to the clipboard." : "Could not copy. Use the saved file instead.");
+    if (current === request.current) {
+      setStatus(copied ? "Copied to the clipboard." : "Could not copy. Use the saved file instead.");
+    }
   };
 
   return (
     <PanelSection title="Troubleshooting">
       <PanelSectionRow>
-        <ButtonItem layout="below" onClick={toggle}>
+        <ButtonItem layout="below" onClick={() => setOpen(!open)}>
           {open ? "Hide Diagnostics" : "Show Diagnostics"}
         </ButtonItem>
       </PanelSectionRow>

@@ -5,14 +5,19 @@ round trip and does not depend on BlueZ's introspection data.
 """
 
 import contextlib
+import asyncio
+import logging
 
 from dbus_fast import BusType, Message, MessageType, Variant
 from dbus_fast.aio import MessageBus
 
 from . import errors
 
+log = logging.getLogger("deckpad.bluez")
+
 SERVICE = "org.bluez"
 AGENT_MANAGER_PATH = "/org/bluez"
+CALL_TIMEOUT = 3.0
 
 ADAPTER = "org.bluez.Adapter1"
 AGENT_MANAGER = "org.bluez.AgentManager1"
@@ -24,6 +29,7 @@ _UNAVAILABLE = {
     "org.freedesktop.DBus.Error.ServiceUnknown",
     "org.freedesktop.DBus.Error.NameHasNoOwner",
     "org.freedesktop.DBus.Error.NoReply",
+    "org.freedesktop.DBus.Error.Disconnected",
 }
 
 
@@ -41,43 +47,35 @@ class BluezError(Exception):
 @contextlib.asynccontextmanager
 async def temporary_connection():
     """A system bus connection for one piece of work while controller mode is off, closed afterwards."""
-    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    bus = MessageBus(bus_type=BusType.SYSTEM)
     try:
+        await asyncio.wait_for(bus.connect(), CALL_TIMEOUT)
         yield bus
     finally:
         bus.disconnect()
 
 
-async def call(bus, path, interface, member, signature="", body=()):
-    reply = await bus.call(
-        Message(
-            destination=SERVICE,
-            path=path,
-            interface=interface,
-            member=member,
-            signature=signature,
-            body=list(body),
-        )
+async def call(bus, path, interface, member, signature="", body=(), *, destination=SERVICE):
+    message = Message(
+        destination=destination, path=path, interface=interface, member=member,
+        signature=signature, body=list(body),
     )
+    try:
+        reply = await asyncio.wait_for(bus.call(message), CALL_TIMEOUT)
+    except TimeoutError as e:
+        raise BluezError("org.freedesktop.DBus.Error.NoReply", "%s timed out" % member) from e
+    except OSError as e:
+        raise BluezError("org.freedesktop.DBus.Error.Disconnected", str(e)) from e
     if reply.message_type == MessageType.ERROR:
         raise BluezError(reply.error_name, reply.body[0] if reply.body else "")
     return reply.body
 
 
 async def _bus_daemon_call(bus, member, arg):
-    reply = await bus.call(
-        Message(
-            destination="org.freedesktop.DBus",
-            path="/org/freedesktop/DBus",
-            interface="org.freedesktop.DBus",
-            member=member,
-            signature="s",
-            body=[arg],
-        )
+    return await call(
+        bus, "/org/freedesktop/DBus", "org.freedesktop.DBus", member, "s", (arg,),
+        destination="org.freedesktop.DBus",
     )
-    if reply.message_type == MessageType.ERROR:
-        raise BluezError(reply.error_name, reply.body[0] if reply.body else "")
-    return reply.body
 
 
 async def add_match(bus, rule):
@@ -151,7 +149,20 @@ def send_disconnect_device(bus, device_path):
     before the caller closes the connection, and the daemon delivers it to bluetoothd ahead of the
     disconnect notice.
     """
-    bus.send(Message(destination=SERVICE, path=device_path, interface=DEVICE, member="Disconnect"))
+    sent = bus.send(Message(destination=SERVICE, path=device_path, interface=DEVICE, member="Disconnect"))
+    if sent.done():
+        sent.result()
+    else:
+        sent.add_done_callback(_disconnect_sent)
+
+
+def _disconnect_sent(sent):
+    try:
+        sent.result()
+    except asyncio.CancelledError:
+        pass
+    except OSError as e:
+        log.warning("Disconnect write failed: %r", e)
 
 
 async def watch_devices(bus):

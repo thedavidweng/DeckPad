@@ -77,6 +77,7 @@ class ControllerMode:
         # Report counts for the current session, for diagnostics.
         self._reports = _ReportCount()
         self._tasks = Tasks()
+        self._recovery_task = None
         self._closed = False
         self._preview = GamepadPreview(on_gamepad_report or _ignore)
         self._pairing = PairingMode(on_change=self._pairing_changed, on_paired=self._paired_hosts.add)
@@ -134,6 +135,8 @@ class ControllerMode:
                 await self._stop()
             elif not enabled and self._status == RECOVERING:
                 log.info("Controller Mode off (while waiting for Bluetooth)")
+                self._recovery_task.cancel()
+                self._recovery_task = None
                 await self._set_status(OFF)
             elif not enabled and self._error:
                 self._error = None
@@ -142,7 +145,14 @@ class ControllerMode:
 
     async def set_quit_combo(self, enabled):
         """When off, the quit combo goes to the host like any other press."""
-        self._settings.set_quit_combo(enabled)
+        try:
+            self._settings.set_quit_combo(enabled)
+        except OSError as e:
+            log.warning("Could not save Quit Combo: %r", e)
+            self._record_error(errors.settings_failed(repr(e)))
+        else:
+            if self._error is not None and self._error.code == "settings_failed":
+                self._error = None
         await self._changed()
         return self.snapshot()
 
@@ -160,12 +170,20 @@ class ControllerMode:
         """Does nothing unless controller mode is on."""
         async with self._lock:
             if self._status == ON:
-                if enabled:
-                    # Before the advertisement goes up, so a host connecting to pair keeps its interval.
-                    self._update_interval(pairing=True)
-                    await self._pairing.open()
-                else:
-                    await self._pairing.close()
+                try:
+                    if enabled:
+                        # Before the advertisement goes up, so a host connecting to pair keeps its interval.
+                        self._update_interval(pairing=True)
+                        await self._pairing.open()
+                    else:
+                        await self._pairing.close()
+                except asyncio.CancelledError:
+                    # A cancelled reply cannot tell us whether BlueZ registered the advertisement.
+                    # Closing the Session's bus revokes even registrations we never got to record.
+                    self._end_session()
+                    self._status = OFF
+                    self._tasks.spawn(self._changed())
+                    raise
         return self.snapshot()
 
     async def disconnect_host(self, address):
@@ -232,6 +250,7 @@ class ControllerMode:
         """
         self._closed = True
         self._tasks.cancel_all()
+        self._recovery_task = None
         self._preview.close()
         self._end_session()
         self._status = OFF
@@ -255,35 +274,44 @@ class ControllerMode:
         if self._interval_state_path:
             if os.geteuid() == 0:
                 connection_interval.restore_leftover(self._interval_state_path)
-            connection_interval.forget_leftover(self._interval_state_path)
         self._paired_hosts.erase()
         self._settings.erase()
         log.info("DeckPad uninstalled")
 
     async def _remove_bluetooth_traces(self):
         try:
-            await asyncio.wait_for(self._connections.forget_all_offline(), UNINSTALL_TIMEOUT)
-        except Exception as e:
-            log.warning("Could not remove the pairings of Paired Hosts: %r", e)
-        await restore_leftover_device_id()
+            async with asyncio.timeout(UNINSTALL_TIMEOUT):
+                try:
+                    await self._connections.forget_all_offline()
+                except Exception as e:
+                    log.warning("Could not remove the pairings of Paired Hosts: %r", e)
+                await restore_leftover_device_id()
+        except TimeoutError:
+            log.warning("Bluetooth cleanup exceeded the uninstall deadline")
 
     async def _start(self):
         self._error = None
-        await self._set_status(STARTING)
         try:
+            await self._set_status(STARTING)
             opened = await self._open_session()
+            if opened:
+                log.info("Controller Mode on")
+                await self._set_status(ON)
+        except asyncio.CancelledError:
+            self._end_session()
+            self._status = OFF
+            self._tasks.spawn(self._changed())
+            raise
         except errors.ControllerModeError as e:
             self._record_error(e)
             await self._set_status(OFF)
             return
-        if opened:
-            log.info("Controller Mode on")
-            await self._set_status(ON)
 
     async def _open_session(self):
         """Returns False if unload began meanwhile. On failure, releases everything and raises."""
         peripheral = Peripheral(
-            listener=_Listeners(self._pairing, self._connections, self._paired_hosts), paired_hosts=self._paired_hosts
+            listener=_Listeners(self._pairing, self._connections, self._paired_hosts, self._reset_reports),
+            paired_hosts=self._paired_hosts,
         )
         watch = BluetoothWatch(lambda reason: self._session_lost(watch, reason))
         self._peripheral = peripheral
@@ -292,14 +320,6 @@ class ControllerMode:
             await asyncio.wait_for(peripheral.start(), self._start_timeout)
             # Started second: losing Bluetooth while the peripheral starts already fails the start.
             await asyncio.wait_for(watch.start(), self._start_timeout)
-        except errors.ControllerModeError as e:
-            error = e
-        except asyncio.TimeoutError:
-            error = errors.start_failed("Bluetooth did not respond in time")
-        except Exception as e:
-            log.exception("Controller Mode failed to start")
-            error = errors.start_failed(repr(e))
-        else:
             if self._closed:
                 watch.stop()
                 peripheral.close()
@@ -310,12 +330,21 @@ class ControllerMode:
             self._pairing.attach(peripheral)
             self._connections.attach(peripheral)
             await self._connections.reconcile()
-            return True
+            if not self._closed and watch.lost:
+                raise errors.bluetooth_unavailable("Bluetooth disappeared during Session startup")
+            return not self._closed
+        except asyncio.CancelledError:
+            self._end_session()
+            raise
+        except errors.ControllerModeError as e:
+            error = e
+        except asyncio.TimeoutError:
+            error = errors.start_failed("Bluetooth did not respond in time")
+        except Exception as e:
+            log.exception("Controller Mode failed to start")
+            error = errors.start_failed(repr(e))
         log.warning("Controller Mode could not start: %s (%s)", error.code, error.detail)
-        watch.stop()
-        peripheral.close()
-        self._peripheral = None
-        self._watch = None
+        self._end_session()
         raise error
 
     def _end_session(self, keep_peripheral=False):
@@ -338,19 +367,29 @@ class ControllerMode:
     async def _stop(self):
         peripheral = self._end_session(keep_peripheral=True)
         self._error = None
-        await self._set_status(STOPPING)
         try:
+            await self._set_status(STOPPING)
             await asyncio.wait_for(peripheral.stop(), self._stop_timeout)
+        except asyncio.CancelledError:
+            # Publish after synchronous cleanup without delaying cancellation on Decky's socket.
+            self._tasks.spawn(self._changed())
+            raise
         except Exception as e:
             log.warning("Controller Mode teardown did not finish cleanly: %r", e)
         finally:
             peripheral.close()
+            self._status = OFF
         log.info("Controller Mode off")
         await self._set_status(OFF)
 
     def _session_lost(self, watch, reason):
-        if not self._closed:
-            self._tasks.spawn(self._recover(watch, reason))
+        if not self._closed and self._watch is watch and self._recovery_task is None:
+            self._recovery_task = self._tasks.spawn(self._recover(watch, reason))
+            self._recovery_task.add_done_callback(self._recovery_finished)
+
+    def _recovery_finished(self, task):
+        if self._recovery_task is task:
+            self._recovery_task = None
 
     async def _recover(self, watch, reason):
         """bluetoothd forgets every registration when it restarts, and an adapter that powers off drops
@@ -371,6 +410,7 @@ class ControllerMode:
                     return
                 try:
                     if await self._open_session():
+                        self._recovery_task = None
                         log.info("Controller Mode resumed: Bluetooth is back")
                         await self._set_status(ON)
                     return
@@ -420,6 +460,10 @@ class ControllerMode:
         if self._status == ON:
             self._tasks.spawn(self._changed())
 
+    def _reset_reports(self):
+        if self._deck_controls is not None:
+            self._deck_controls.reset_reports()
+
     def _stop_deck_controls(self):
         if self._deck_controls is not None:
             self._deck_controls.stop()
@@ -454,18 +498,20 @@ async def _ignore(_):
 
 
 class _Listeners:
-    """A device may use the Deck's services while pairing mode is open, or if it is a paired host."""
+    """Only the pairing candidate and BlueZ-paired DeckPad Hosts may use DeckPad services."""
 
-    def __init__(self, pairing, connections, paired_hosts):
+    def __init__(self, pairing, connections, paired_hosts, report_target_changed):
         self._pairing = pairing
         self._connections = connections
         self._paired_hosts = paired_hosts
+        self.report_target_changed = report_target_changed
 
     def pairing_requested(self, device):
         return self._pairing.pairing_requested(device)
 
     def service_requested(self, device):
-        return self._pairing.accepting or device.get("Address") in self._paired_hosts
+        return (self._pairing.service_requested(device)
+                or bool(device.get("Paired") and device.get("Address") in self._paired_hosts))
 
     def device_changed(self, path, before, after):
         self._pairing.device_changed(path, before, after)

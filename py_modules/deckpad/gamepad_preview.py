@@ -31,12 +31,14 @@ class GamepadPreview:
 
     def watch(self, enabled):
         """Starting sends the current state at once, so the drawing is never blank."""
+        if self._watching == bool(enabled):
+            return
         self._watching = bool(enabled)
         if self._watching:
             self._published = None
             self._flush()
         else:
-            self._cancel_timer()
+            self.close()
 
     def show(self, report):
         self._latest = report

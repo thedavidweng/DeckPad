@@ -5,6 +5,7 @@ and BlueZ then rejects the application with "No valid service object found".
 """
 
 from dbus_fast import Variant
+from dbus_fast.errors import DBusError
 from dbus_fast.service import PropertyAccess, ServiceInterface, dbus_property, method
 
 
@@ -13,8 +14,21 @@ def uuid16(short):
 
 
 def _offset(options):
-    offset = options.get("offset")
-    return int(offset.value) if isinstance(offset, Variant) else 0
+    if "offset" not in options:
+        return 0
+    offset = options["offset"]
+    if not isinstance(offset, Variant) or offset.signature != "q":
+        raise DBusError("org.bluez.Error.InvalidArguments", "Offset must be uint16")
+    return offset.value
+
+
+def _read(value, flags, options):
+    if not any(flag in flags for flag in ("read", "encrypt-read")):
+        raise DBusError("org.bluez.Error.NotPermitted", "Value is not readable")
+    offset = _offset(options)
+    if offset > len(value):
+        raise DBusError("org.bluez.Error.InvalidOffset", "Offset exceeds value length")
+    return value[offset:]
 
 
 def _device(options):
@@ -33,21 +47,22 @@ class Descriptor(ServiceInterface):
         self.value = bytes(value)
 
     @dbus_property(access=PropertyAccess.READ)
-    def UUID(self) -> "s":
+    def UUID(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._uuid
 
     @dbus_property(access=PropertyAccess.READ)
-    def Characteristic(self) -> "o":
+    def Characteristic(self) -> "o":  # noqa: F821 — D-Bus signature
         return self._characteristic_path
 
     @dbus_property(access=PropertyAccess.READ)
-    def Flags(self) -> "as":
+    def Flags(self) -> "as":  # noqa: F722 — D-Bus signature
         return self._flags
 
     @method()
-    def ReadValue(self, options: "a{sv}") -> "ay":
+    def ReadValue(self, options: "a{sv}") -> "ay":  # noqa: F722, F821 — D-Bus signature
+        value = _read(self.value, self._flags, options)
         self._application.host_seen(_device(options))
-        return self.value[_offset(options):]
+        return value
 
 
 class Characteristic(ServiceInterface):
@@ -62,6 +77,7 @@ class Characteristic(ServiceInterface):
         # BlueZ calls StartNotify/StopNotify only on CCCD writes and app (re-)registration, never on
         # a paired host's disconnect or plain reconnect, so only those two calls may change this flag.
         self.notifying = False
+        self.on_notify_changed = None
         self.descriptors = []
 
     def add_descriptor(self, uuid, flags, value):
@@ -70,37 +86,57 @@ class Characteristic(ServiceInterface):
         return descriptor
 
     @dbus_property(access=PropertyAccess.READ)
-    def UUID(self) -> "s":
+    def UUID(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._uuid
 
     @dbus_property(access=PropertyAccess.READ)
-    def Service(self) -> "o":
+    def Service(self) -> "o":  # noqa: F821 — D-Bus signature
         return self._service_path
 
     @dbus_property(access=PropertyAccess.READ)
-    def Flags(self) -> "as":
+    def Flags(self) -> "as":  # noqa: F722 — D-Bus signature
         return self._flags
 
     @dbus_property(access=PropertyAccess.READ)
-    def Value(self) -> "ay":
+    def Value(self) -> "ay":  # noqa: F821 — D-Bus signature
         return self.value
 
     @method()
-    def ReadValue(self, options: "a{sv}") -> "ay":
+    def ReadValue(self, options: "a{sv}") -> "ay":  # noqa: F722, F821 — D-Bus signature
+        value = _read(self.value, self._flags, options)
         self.application.host_seen(_device(options))
-        return self.value[_offset(options):]
+        return value
 
     @method()
-    def WriteValue(self, value: "ay", options: "a{sv}"):
+    def WriteValue(self, value: "ay", options: "a{sv}"):  # noqa: F722, F821 — D-Bus signature
+        if not any(flag in self._flags for flag in ("write", "encrypt-write", "write-without-response")):
+            raise DBusError("org.bluez.Error.NotPermitted", "Value is not writable")
+        if _offset(options) != 0:
+            raise DBusError("org.bluez.Error.InvalidOffset", "Partial HID writes are not supported")
+        if len(value) != len(self.value):
+            raise DBusError("org.bluez.Error.InvalidValueLength", "Incorrect HID value length")
+        if self._uuid == uuid16("2a4c") and value not in (b"\x00", b"\x01"):
+            raise DBusError("org.bluez.Error.NotSupported", "Unknown HID control point")
+        if self._uuid == uuid16("2a4e") and value != b"\x01":
+            raise DBusError("org.bluez.Error.NotSupported", "Only Report Protocol is supported")
+        # Suspend and rumble are accepted without side effects; Boot Protocol is not advertised.
         self.application.host_seen(_device(options))
 
     @method()
     def StartNotify(self):
-        self.notifying = True
+        self._set_notifying(True)
 
     @method()
     def StopNotify(self):
-        self.notifying = False
+        self._set_notifying(False)
+
+    def _set_notifying(self, enabled):
+        if "notify" not in self._flags:
+            raise DBusError("org.bluez.Error.NotSupported", "Value does not support notifications")
+        if self.notifying != enabled:
+            self.notifying = enabled
+            if self.on_notify_changed is not None:
+                self.on_notify_changed()
 
 
 class Service(ServiceInterface):
@@ -119,19 +155,19 @@ class Service(ServiceInterface):
         return characteristic
 
     @dbus_property(access=PropertyAccess.READ)
-    def UUID(self) -> "s":
+    def UUID(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._uuid
 
     @dbus_property(access=PropertyAccess.READ)
-    def Primary(self) -> "b":
+    def Primary(self) -> "b":  # noqa: F821 — D-Bus signature
         return True
 
     @dbus_property()
-    def Handle(self) -> "q":
+    def Handle(self) -> "q":  # noqa: F821 — D-Bus signature
         return self.handle
 
     @Handle.setter
-    def Handle(self, value: "q"):
+    def Handle(self, value: "q"):  # noqa: F821 — D-Bus signature
         self.handle = value
 
 
@@ -157,10 +193,6 @@ class Application:
         self.services.append(service)
         return service
 
-    def let_bluez_pick_handles(self):
-        for service in self.services:
-            service.handle = 0
-
     def _objects(self):
         for service in self.services:
             yield service
@@ -171,7 +203,3 @@ class Application:
     def export(self, bus):
         for obj in self._objects():
             bus.export(obj.path, obj)
-
-    def unexport(self, bus):
-        for obj in self._objects():
-            bus.unexport(obj.path, obj)

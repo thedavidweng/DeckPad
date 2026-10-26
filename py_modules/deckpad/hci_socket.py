@@ -21,8 +21,10 @@ def open_hci_socket(index, channel):
 
     sock = socket.socket(AF_BLUETOOTH, socket.SOCK_RAW | socket.SOCK_CLOEXEC, BTPROTO_HCI)
     try:
-        address = struct.pack("<HHH", AF_BLUETOOTH, index, channel)
+        address = struct.pack("=HHH", AF_BLUETOOTH, index, channel)
         libc = ctypes.CDLL(None, use_errno=True)
+        libc.bind.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint]
+        libc.bind.restype = ctypes.c_int
         if libc.bind(sock.fileno(), ctypes.create_string_buffer(address, len(address)), len(address)) != 0:
             errno = ctypes.get_errno()
             raise OSError(errno, os.strerror(errno))

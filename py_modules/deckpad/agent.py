@@ -15,10 +15,11 @@ class PairingAgent(ServiceInterface):
     `allow_service` are called with the device's object path and answer synchronously.
     """
 
-    def __init__(self, allow_pairing, allow_service):
+    def __init__(self, allow_pairing, allow_service, service_uuids):
         super().__init__("org.bluez.Agent1")
         self._allow_pairing = allow_pairing
         self._allow_service = allow_service
+        self._service_uuids = frozenset(service_uuids)
 
     def _authorize(self, device):
         if not self._allow_pairing(device):
@@ -29,35 +30,34 @@ class PairingAgent(ServiceInterface):
         pass
 
     @method()
-    def RequestPinCode(self, device: "o") -> "s":
+    def RequestPinCode(self, device: "o") -> "s":  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "PIN pairing is not supported")
 
     @method()
-    def DisplayPinCode(self, device: "o", pincode: "s"):
+    def DisplayPinCode(self, device: "o", pincode: "s"):  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "PIN pairing is not supported")
 
     @method()
-    def RequestPasskey(self, device: "o") -> "u":
+    def RequestPasskey(self, device: "o") -> "u":  # noqa: F821 — D-Bus signature
         raise DBusError(_REJECTED, "Passkey entry is not supported")
 
     @method()
-    def DisplayPasskey(self, device: "o", passkey: "u", entered: "q"):
-        pass
+    def DisplayPasskey(self, device: "o", passkey: "u", entered: "q"):  # noqa: F821 — D-Bus signature
+        raise DBusError(_REJECTED, "Passkey display is not supported")
 
     @method()
-    def RequestConfirmation(self, device: "o", passkey: "u"):
-        # The Deck has no way to show the passkey to compare, so this is treated as Just Works.
+    def RequestConfirmation(self, device: "o", passkey: "u"):  # noqa: F821 — D-Bus signature
+        raise DBusError(_REJECTED, "Numeric comparison is not supported")
+
+    @method()
+    def RequestAuthorization(self, device: "o"):  # noqa: F821 — D-Bus signature
         self._authorize(device)
 
     @method()
-    def RequestAuthorization(self, device: "o"):
-        self._authorize(device)
-
-    @method()
-    def AuthorizeService(self, device: "o", uuid: "s"):
+    def AuthorizeService(self, device: "o", uuid: "s"):  # noqa: F821 — D-Bus signature
         # BlueZ asks this only for paired but untrusted devices, so the user's trusted peripherals never
         # get here.
-        if not self._allow_service(device):
+        if uuid.lower() not in self._service_uuids or not self._allow_service(device):
             raise DBusError(_REJECTED, "Not a Paired Host")
 
     @method()

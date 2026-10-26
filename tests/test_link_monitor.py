@@ -9,6 +9,7 @@ import asyncio
 import socket
 import struct
 import unittest
+from unittest.mock import Mock
 
 from deckpad.link_monitor import FALLBACK_REPORT_INTERVAL, LinkMonitor
 
@@ -88,6 +89,13 @@ class PacingToTheConnectedHost(LinkCase):
         self.assertGreater(self.monitor.report_interval(), 0.030)
         self.assertLess(self.monitor.report_interval(), 0.036)
 
+    async def test_enhanced_v2_events_keep_the_same_interval_layout(self):
+        v1 = le_enhanced_connection_complete(24, PERIPHERAL, 15)
+        params = b"\x29" + v1[4:] + bytes.fromhex("ffffff")
+        await self.events(bytes([4, 0x3E, len(params)]) + params)
+        self.assertGreater(self.monitor.report_interval(), 0.01875)
+        self.assertLess(self.monitor.report_interval(), 0.025)
+
     async def test_the_shortest_interval_carries_over_100_reports_per_second(self):
         await self.events(le_enhanced_connection_complete(24, PERIPHERAL, 6))  # 7.5 ms
 
@@ -129,8 +137,44 @@ class LinksThatAreNotHosts(LinkCase):
 
         self.assertEqual(self.monitor.report_interval(), FALLBACK_REPORT_INTERVAL)
 
+    async def test_bad_lengths_handles_roles_and_intervals_cannot_change_the_pace(self):
+        valid = le_enhanced_connection_complete(24, PERIPHERAL, 15)
+        packets = (
+            valid[:-1], valid + b"\x00", valid[:2] + b"\x00" + valid[3:],
+            le_enhanced_connection_complete(0x1018, PERIPHERAL, 15),
+            le_enhanced_connection_complete(0x0F00, PERIPHERAL, 15),
+            le_enhanced_connection_complete(24, 2, 15),
+            le_enhanced_connection_complete(24, PERIPHERAL, 0),
+            le_enhanced_connection_complete(24, PERIPHERAL, 3201),
+        )
+        for packet in packets:
+            with self.subTest(packet=packet):
+                await self.events(packet)
+                self.assertEqual(self.monitor.report_interval(), FALLBACK_REPORT_INTERVAL)
+
+    async def test_invalid_updates_and_disconnects_do_not_alias_a_live_handle(self):
+        await self.events(le_enhanced_connection_complete(24, PERIPHERAL, 39))
+        before = self.monitor.report_interval()
+        await self.events(le_connection_update_complete(0x1018, 6), disconnect_complete(0x1018),
+                          le_connection_update_complete(24, 0))
+        self.assertEqual(self.monitor.report_interval(), before)
+
+    async def test_a_closed_event_socket_restores_conservative_pacing(self):
+        await self.events(le_enhanced_connection_complete(24, PERIPHERAL, 15))
+        self.controller.close()
+        await asyncio.sleep(0.05)
+        self.assertEqual(self.monitor.report_interval(), FALLBACK_REPORT_INTERVAL)
+
 
 class WithoutAccessToTheController(unittest.IsolatedAsyncioTestCase):
+    async def test_reader_registration_failure_closes_the_socket(self):
+        sock = Mock()
+        sock.fileno.return_value = -1
+        monitor = LinkMonitor(0, open_socket=lambda index: sock)
+        monitor.start()
+        sock.close.assert_called_once()
+        self.assertEqual(monitor.report_interval(), FALLBACK_REPORT_INTERVAL)
+
     async def test_the_pace_stays_conservative(self):
         def refuse(index):
             raise PermissionError(1, "Operation not permitted")

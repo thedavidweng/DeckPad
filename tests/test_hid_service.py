@@ -66,13 +66,14 @@ class AHostDiscoveringTheDeck(PluginTestCase):
 
 
 class AnotherAppHoldingDeckPadsHandles(PluginTestCase):
-    async def test_controller_mode_still_starts_with_handles_bluez_picks(self):
+    async def test_an_unconfirmed_database_failure_is_exposed_without_dynamic_handles(self):
         self.bluez.occupy_handles(0x01F0, 0x0250)
 
         state = await self.plugin.set_controller_mode(True)
 
-        self.assertEqual(state["status"], "on")
-        self.assertEqual(await self.bluez.host_reads("2a4b"), XBOX_1914_REPORT_MAP)
+        self.assertEqual(state["status"], "off")
+        self.assertEqual(state["error"]["code"], "start_failed")
+        self.assertFalse(self.bluez.applications)
 
 
 if __name__ == "__main__":

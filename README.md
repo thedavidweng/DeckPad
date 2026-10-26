@@ -89,7 +89,8 @@ More in [docs/limitations.md](docs/limitations.md).
 
 DeckPad runs as root. While **Controller Mode** is on, it changes bluetoothd's DeviceID in memory so hosts
 see an Xbox controller, shortens the adapter's Bluetooth LE connection interval, and answers pairing
-requests from hosts. All of it is undone when **Controller Mode** turns off. Uninstalling removes only the
+requests from hosts. The memory override is restricted to verified BlueZ 5.83. Original values are
+verified when restored; a failed interval restore retains its recovery record. Uninstalling removes only the
 pairings made through DeckPad and DeckPad's own files. Details: [docs/system-changes.md](docs/system-changes.md).
 
 ## Troubleshooting
@@ -97,22 +98,29 @@ pairings made through DeckPad and DeckPad's own files. Details: [docs/system-cha
 Expand **Troubleshooting** in the panel for a diagnostics report, and attach it when you
 [report an issue](https://github.com/thedavidweng/DeckPad/issues). Common problems and every error
 message: [docs/troubleshooting.md](docs/troubleshooting.md).
+Reports replace Bluetooth addresses with consistent labels. The summary and device list omit Host
+names and the adapter alias; inspect recent log text for other identifying information before sharing.
 
 <img src="docs/screenshots/qam-troubleshooting.png" width="320" alt="The Troubleshooting section with the diagnostics summary">
 
 ## Development
 
-- Backend tests need `dbus-daemon` and Python 3.11 or newer: `mise x python@3.11 -- pnpm test`.
-- Frontend build: `pnpm i && pnpm build`. The store CI uses Node 20, pnpm 9, `pnpm i --frozen-lockfile`,
-  and the [Decky CLI](https://github.com/SteamDeckHomebrew/cli).
-- Plugin zip, the same layout the store ships (needs `zip`):
+- Backend tests need **Linux**, `dbus-daemon`, and Python 3.11 or newer: `python3 -m unittest discover -s tests -t .`.
+  The suite exercises Linux sockets and `/proc`; macOS is suitable for focused pure-function tests.
+- Frontend checks: `pnpm install --frozen-lockfile && pnpm typecheck && pnpm test:frontend && pnpm build`.
+  The verification workflow uses Node 24 and pnpm 12.10.1; the official builder currently uses pnpm 9.
+- Python static checks: `python3 -m pip install ruff==0.15.0`, then
+  `python3 -m ruff check main.py py_modules/deckpad tests` and
+  `python3 -m compileall -q main.py py_modules/deckpad tests`.
+- Plugin ZIP: use the [official Decky CLI](https://github.com/SteamDeckHomebrew/cli) 0.0.7 and a running
+  Docker daemon, matching the Store's build workflow:
 
   ```sh
-  pnpm i --frozen-lockfile && pnpm build
-  mkdir -p out/DeckPad
-  cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
-  (cd out && zip -r DeckPad.zip DeckPad -x '*/__pycache__/*')
+  decky plugin build -o ./out .
+  python3 -m tests.check_package ./out/DeckPad.zip
   ```
+  On macOS, pass `-t` with an absolute temporary directory shared with Docker. CI runs this packaging
+  check on Linux. It does not submit, publish, or install the ZIP.
 - Website: `site/`, deployed to GitHub Pages by `.github/workflows/pages.yml`, which copies
   `docs/screenshots/` in next to it. Preview it by doing the same into `_site/` and serving that folder.
   `sh docs/site-art/make-deck-images.sh` rebuilds the Steam Deck images from Valve's press render and

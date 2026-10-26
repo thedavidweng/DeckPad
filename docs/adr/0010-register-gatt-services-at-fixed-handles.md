@@ -1,6 +1,13 @@
 # Register DeckPad's GATT services at fixed handles
 
-DeckPad sets the `Handle` property of each `GattService1` it registers: the HID service at `0x0200`, Battery at `0x0230` and Device Information at `0x0240`. bluetoothd places the characteristics of each service in order after it, so a Paired Host sees the same attribute layout in every Controller Mode session. If another application already holds that range, `RegisterApplication` fails, and DeckPad registers again with `Handle` 0 so bluetoothd picks the handles (and logs a warning).
+DeckPad sets the `Handle` property of each `GattService1` it registers: the HID service at `0x0200`, Battery at `0x0230` and Device Information at `0x0240`. bluetoothd places the characteristics of each service in order after it, so a Paired Host sees the same attribute layout in every Controller Mode session. Failed registration is exposed and the session connection is closed, releasing its registrations.
+
+The earlier retry with `Handle` 0 was removed during the reliability review. BlueZ 5.83's
+[`client_ready_cb`](https://github.com/bluez/bluez/blob/5.83/src/gatt-database.c) returns the same
+`org.bluez.Error.Failed` / `Failed to create entry in database` for Handle conflicts, invalid
+properties, characteristic/descriptor creation failures, and allocation failures. It cannot prove
+a Handle conflict. A dynamic-Handle retry may be reconsidered only with independently confirmed
+conflict information and an explicit warning that Paired Hosts may need to pair again.
 
 Without fixed handles, a Paired Host got no input after Controller Mode was turned off and on. Two BlueZ 5.83 behaviours combine:
 
@@ -19,5 +26,5 @@ On reconnect, bluetoothd sent Service Changed before the Host's GATT client was 
 
 - Verified on the Deck with the Linux Host: across three Controller Mode off/on cycles the Host reconnected by itself, subscribed, and received input each time, with the HID service at `0x0200-0x020f` in every session.
 - A Host that bonded with a DeckPad build from before this change, on a bluetoothd whose hash had already frozen, keeps its stale cache. It must remove the Deck and pair again once; restarting Bluetooth on the Deck also clears the frozen hash. `docs/troubleshooting.md` covers this under "Connected but no input".
-- The fallback (`Handle` 0) brings the original problem back for that session. It only happens if another GATT application on the Deck claims the same handles.
+- A competing GATT application's occupied Handle range prevents Controller Mode from starting; no dynamic-Handle retry masks the error or silently breaks Paired Hosts' caches.
 - Adding attributes to the HID service must keep it inside `0x0200-0x022f`, below the Battery service.

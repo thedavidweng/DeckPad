@@ -9,12 +9,40 @@ from deckpad import pairing
 
 from tests.support.fake_bluez import HOST_ADDRESS, HOST_NAME
 from tests.support.plugin_case import PluginTestCase
+from tests.support.wait import eventually, settled, when
 
 HID_SERVICE = "00001812-0000-1000-8000-00805f9b34fb"
 GAMEPAD_APPEARANCE = 0x03C4
 
 
 class EnteringPairingMode(PluginTestCase):
+    async def test_cancelled_advertisement_registration_closes_the_session_and_pairing_window(self):
+        from deckpad import bluez
+
+        await self.plugin.set_controller_mode(True)
+        entered = asyncio.Event()
+        register = bluez.register_advertisement
+
+        async def reply_interrupted(*args):
+            await register(*args)
+            entered.set()
+            await asyncio.Future()
+
+        with mock.patch.object(bluez, "register_advertisement", side_effect=reply_interrupted):
+            task = asyncio.create_task(self.plugin.set_pairing_mode(True))
+            await entered.wait()
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        state = await self.state()
+        self.assertEqual(state["status"], "off")
+        self.assertEqual(state["pairing"]["status"], "closed")
+        self.assertIsNone(state["pairing"]["seconds_left"])
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+        self.assertEqual(self.decky.events[-1][1]["status"], "off")
+        await self.plugin.set_controller_mode(True)
+        self.assertEqual((await self.plugin.set_pairing_mode(True))["pairing"]["status"], "discoverable")
+
     async def test_controller_mode_alone_does_not_make_the_deck_discoverable(self):
         state = await self.plugin.set_controller_mode(True)
 
@@ -90,7 +118,8 @@ class FirstPairing(PluginTestCase):
 
         self.bluez.devices[device].update(alias=HOST_NAME)
 
-        self.assertTrue(await eventually_async(self.plugin, lambda s: s["pairing"]["host"]["name"] == HOST_NAME))
+        state = await when(self.plugin, lambda s: s["pairing"]["host"]["name"] == HOST_NAME)
+        self.assertEqual(state["pairing"]["host"]["name"], HOST_NAME)
 
     async def test_the_deck_stops_advertising_once_a_host_connects(self):
         await self.bluez.host_connects()
@@ -100,6 +129,16 @@ class FirstPairing(PluginTestCase):
         self.assertEqual(state["pairing"]["status"], "pairing")
         self.assertEqual(state["pairing"]["host"]["name"], HOST_NAME)
         self.assertTrue(await eventually(lambda: self.bluez.advertisement is None))
+
+    async def test_a_second_device_cannot_pair_with_the_active_candidate(self):
+        first = await self.bluez.host_connects()
+        await settled(self.plugin, "pairing")
+        second = self.bluez.device("AA:BB:CC:DD:EE:FF", "Second Host").path
+
+        self.assertFalse(await self.bluez.host_pairs(second))
+        self.assertTrue(await self.bluez.host_pairs(first))
+        state = await settled(self.plugin, "paired")
+        self.assertEqual(state["pairing"]["host"]["address"], HOST_ADDRESS)
 
 
 class PairingOutsidePairingMode(PluginTestCase):
@@ -152,6 +191,20 @@ class ServiceAuthorization(PluginTestCase):
         device = await self.bluez.host_connects()
 
         self.assertTrue(await self.bluez.device_uses_a_service(device))
+
+    async def test_open_pairing_does_not_authorize_an_unrelated_device(self):
+        await self.plugin.set_pairing_mode(True)
+        stranger = self.bluez.device("4C:87:5D:98:4A:A4", "Headphones")
+        stranger.update(paired=True)
+        self.assertFalse(await self.bluez.device_uses_a_service(stranger.path))
+
+    async def test_only_the_candidate_can_use_services_during_pairing(self):
+        await self.plugin.set_pairing_mode(True)
+        first = await self.bluez.host_connects()
+        await settled(self.plugin, "pairing")
+        second = self.bluez.device("AA:BB:CC:DD:EE:FF", "Second Host").path
+        self.assertTrue(await self.bluez.device_uses_a_service(first))
+        self.assertFalse(await self.bluez.device_uses_a_service(second))
 
 
 class PairingFailures(PluginTestCase):
@@ -228,6 +281,25 @@ class PairingFailures(PluginTestCase):
 
 
 class PairingModeAndControllerMode(PluginTestCase):
+    async def test_late_advertisement_reply_after_unload_does_not_create_a_timer(self):
+        await self.plugin.set_controller_mode(True)
+        mode = self.plugin._controller_mode
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def pending(*_):
+            entered.set()
+            await release.wait()
+
+        with mock.patch.object(mode._peripheral, "advertise", pending):
+            task = asyncio.create_task(self.plugin.set_pairing_mode(True))
+            await entered.wait()
+            await self.plugin._unload()
+            release.set()
+            state = await task
+        self.assertEqual(state["pairing"]["status"], "closed")
+        self.assertIsNone(mode._pairing._timer)
+        self.assertTrue(await self.bluez.wait_until_clean(), self.bluez.registrations())
+
     async def test_turning_controller_mode_off_ends_pairing_mode_cleanly(self):
         await self.plugin.set_controller_mode(True)
         await self.plugin.set_pairing_mode(True)
@@ -339,31 +411,6 @@ class APairedHostInALaterSession(PluginTestCase):
         self.assertTrue(await eventually(lambda: self.bluez.disconnect_requests == [device]))
 
 
-async def settled(plugin, status, timeout=2.0):
-    """The backend state once pairing mode reaches `status` (Bluetooth events arrive asynchronously)."""
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while True:
-        state = await plugin.get_state()
-        if state["pairing"]["status"] == status or loop.time() > deadline:
-            return state
-        await asyncio.sleep(0.01)
-
-
-async def eventually_async(plugin, predicate, timeout=2.0):
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while not predicate(await plugin.get_state()) and loop.time() < deadline:
-        await asyncio.sleep(0.01)
-    return predicate(await plugin.get_state())
-
-
-async def eventually(predicate, timeout=2.0):
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while not predicate() and loop.time() < deadline:
-        await asyncio.sleep(0.01)
-    return predicate()
 
 
 if __name__ == "__main__":

@@ -32,7 +32,6 @@ class PluginTestCase(unittest.IsolatedAsyncioTestCase):
         # Decky gives each plugin process a fresh `decky` module, so load main.py against this test's.
         self.main = importlib.reload(importlib.import_module("main"))
         self.plugin = self.main.Plugin()
-        await self.plugin._migration()
         await self.plugin._main()
 
     async def asyncTearDown(self):

@@ -31,12 +31,12 @@ class PairingMode:
         self._status = CLOSED
         self._host = None
         self._host_path = None
-        # Once a host connected to pair, Device1 changes of other devices are ignored.
-        self._candidate = None
         self._error = None
         self._deadline = None
         self._timer = None
         self._tasks = Tasks()
+        # Pairing and reconnect decisions share this lock; Peripheral serializes the registrations.
+        self.advertising_lock = asyncio.Lock()
 
     def snapshot(self):
         seconds_left = None
@@ -73,21 +73,26 @@ class PairingMode:
         self._reset(CLOSED)
 
     async def open(self):
-        if self._peripheral is None or self.accepting:
-            return
-        self._reset(DISCOVERABLE)
-        try:
-            await self._peripheral.advertise()
-        except Exception as e:
-            log.warning("Could not start advertising: %r", e)
-            self._reset(FAILED, error=errors.advertising_failed(repr(e)))
-            await self._publish()
-            return
-        timeout = TIMEOUT
-        loop = asyncio.get_running_loop()
-        self._deadline = loop.time() + timeout
-        self._timer = loop.call_later(timeout, self._expired)
-        log.info("Pairing Mode open for %ds", timeout)
+        async with self.advertising_lock:
+            if self._peripheral is None or self.accepting:
+                return
+            peripheral = self._peripheral
+            self._reset(DISCOVERABLE)
+            try:
+                await peripheral.advertise()
+            except Exception as e:
+                if self._peripheral is not peripheral:
+                    return
+                log.warning("Could not start advertising: %r", e)
+                self._reset(FAILED, error=errors.advertising_failed(repr(e)))
+            else:
+                if self._peripheral is not peripheral or not self.accepting:
+                    return
+                timeout = TIMEOUT
+                loop = asyncio.get_running_loop()
+                self._deadline = loop.time() + timeout
+                self._timer = loop.call_later(timeout, self._expired)
+                log.info("Pairing Mode open for %ds", timeout)
         await self._publish()
 
     async def close(self):
@@ -100,12 +105,17 @@ class PairingMode:
     # Called synchronously by the peripheral from the agent and the Device1 watch.
 
     def pairing_requested(self, device):
-        if not self.accepting:
+        if not self.accepting or not device.get("Address"):
             log.info("Refused pairing from %s: Pairing Mode is not open", device.get("Address"))
             return False
         if self._status == DISCOVERABLE:
             self._host_connected(device)
-        return True
+        return device["path"] == self._host_path
+
+    def service_requested(self, device):
+        return (self.accepting and self._host is not None
+                and device.get("path") == self._host_path
+                and device.get("Address") == self._host.address)
 
     def device_changed(self, path, before, after):
         if self._host is not None and self._host_path == path and Host.from_device(after) != self._host:
@@ -119,7 +129,7 @@ class PairingMode:
                 # A paired host reconnecting is not a new pairing.
                 return
             self._host_connected(after)
-        if self._candidate is not None and path != self._candidate:
+        if self._host_path is None or path != self._host_path:
             return
         if after.get("Paired") and not before.get("Paired"):
             self._set_host(after)
@@ -132,7 +142,6 @@ class PairingMode:
             self._finish(FAILED, errors.pairing_failed(self._host.name))
 
     def _host_connected(self, device):
-        self._candidate = device["path"]
         self._set_host(device)
         self._status = PAIRING
         # Advertise only while no host is connected: a connectable advertisement during a connection
@@ -161,7 +170,6 @@ class PairingMode:
         self._status = status
         self._host = None
         self._host_path = None
-        self._candidate = None
         self._error = error
         self._deadline = None
 
@@ -171,8 +179,10 @@ class PairingMode:
             self._timer = None
 
     async def _withdraw(self):
-        if self._peripheral is not None:
-            await self._peripheral.stop_advertising()
+        async with self.advertising_lock:
+            # An old completion must not withdraw a newly opened pairing window.
+            if self._peripheral is not None and self._status != DISCOVERABLE:
+                await self._peripheral.stop_advertising()
 
     async def _publish(self):
         await self._on_change()

@@ -9,6 +9,11 @@ This works because BlueZ 5.83 builds the DIS PnP ID value from those globals on 
 - bluetoothd's PID comes from D-Bus (`GetConnectionUnixProcessID("org.bluez")`). The original value is derived from the adapter's `Modalias` (`usb:v1D6Bp0246d0553` becomes `02 00 6b 1d 46 02 53 05`), never hard-coded.
 - DeckPad scans only the writable mappings of bluetoothd's own executable image, and writes only if the original value occurs exactly once there. Anything else (zero or several matches, an unknown Modalias, or an inaccessible process) leaves bluetoothd untouched and logs why. Hosts may then read BlueZ's ID, which is the pre-ADR behaviour.
 - Restore writes back only if the bytes are still DeckPad's, and only if the process is the same one (same PID, exe, and start time). A restarted bluetoothd already has its own values.
+- The executable reached through `/proc/<pid>/exe --version` must report exactly `5.83`; a custom `DeviceID` version in Modalias is not proof of the daemon version. The version command exits before daemon initialization ([BlueZ 5.83 main.c](https://github.com/bluez/bluez/blob/5.83/src/main.c)). Other versions are skipped until their layout and live DIS reader are verified.
+- All writes go through one checked boundary: reopen memory, recheck process identity and expected bytes, write, and read back. Restore and startup cleanup report success only after the original bytes are verified; permission failures and failed verification are logged as failures.
+- A short write is withdrawn only if the process is unchanged and the bytes exactly match the prefix
+  written by that operation plus the untouched original suffix. The rollback is read back too. A
+  changed process or external edit is never overwritten; a failed rollback remains a reported failure.
 - Restore is synchronous file I/O, so it also runs in `_unload`, where awaiting is impossible. If DeckPad is SIGKILLed with the override in place, the next backend start (`_main`) detects the single leftover copy and restores it. The next Controller Mode start would also adopt it.
 
 ## Considered Options
@@ -21,6 +26,6 @@ This works because BlueZ 5.83 builds the DIS PnP ID value from those globals on 
 
 - The plugin must run as root: `plugin.json` now has the `root` flag. (ADR-0004's "`_root` flag" wording was wrong: `_root` is the disabled form.) The rest of the backend works the same as root.
 - Writing another process's memory is unusual for a Decky plugin and may draw Plugin Store review questions. #8 must state it plainly in the store submission.
-- A BlueZ update that changes how `btd_opts` is stored, or that caches the PnP value, makes the override a logged no-op rather than a failure. Re-verify on each SteamOS BlueZ bump: check the PnP ID that a Host reads, or the Host's `Modalias`.
+- A BlueZ update disables the override until re-verified and explicitly supported. Re-verify on each SteamOS BlueZ bump: check the PnP ID that a Host reads, or the Host's `Modalias`.
 - While Controller Mode is on, any LE central that reads the Deck's DIS sees the Xbox identity. That includes devices unrelated to DeckPad.
 - Hosts cache the DIS per bond. A Host that bonded before this override existed keeps its cached ID until it is re-paired.

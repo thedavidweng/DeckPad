@@ -21,23 +21,23 @@ class Advertisement(ServiceInterface):
         self.discoverable = discoverable
 
     @dbus_property(access=PropertyAccess.READ)
-    def Type(self) -> "s":
+    def Type(self) -> "s":  # noqa: F821 — D-Bus signature
         return "peripheral"
 
     @dbus_property(access=PropertyAccess.READ)
-    def ServiceUUIDs(self) -> "as":
+    def ServiceUUIDs(self) -> "as":  # noqa: F722 — D-Bus signature
         return [gatt.uuid16("1812")]
 
     @dbus_property(access=PropertyAccess.READ)
-    def Appearance(self) -> "q":
+    def Appearance(self) -> "q":  # noqa: F821 — D-Bus signature
         return GAMEPAD_APPEARANCE
 
     @dbus_property(access=PropertyAccess.READ)
-    def LocalName(self) -> "s":
+    def LocalName(self) -> "s":  # noqa: F821 — D-Bus signature
         return self._local_name
 
     @dbus_property(access=PropertyAccess.READ)
-    def Discoverable(self) -> "b":
+    def Discoverable(self) -> "b":  # noqa: F821 — D-Bus signature
         return self.discoverable
 
     @method()

@@ -8,6 +8,7 @@ import dataclasses
 import json
 import logging
 import os
+import re
 
 from . import storage
 
@@ -19,6 +20,13 @@ class Host:
     address: str
     # None while bluetoothd only knows the address.
     name: "str | None" = None
+
+    def __post_init__(self):
+        if not isinstance(self.address, str) or not re.fullmatch(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}", self.address):
+            raise ValueError("Invalid Bluetooth Host address")
+        if self.name is not None and not isinstance(self.name, str):
+            raise ValueError("Host name must be a string or null")
+        object.__setattr__(self, "address", self.address.upper())
 
     @classmethod
     def from_device(cls, device):
@@ -45,7 +53,8 @@ class PairedHosts:
         if path and os.path.exists(path):
             try:
                 with open(path) as f:
-                    self._hosts = {h["address"]: Host(h["address"], h["name"]) for h in json.load(f)["hosts"]}
+                    hosts = [Host(h["address"], h["name"]) for h in json.load(f)["hosts"]]
+                self._hosts = {host.address: host for host in hosts}
             except (OSError, ValueError, KeyError, TypeError) as e:
                 log.warning("Ignoring unreadable Paired Host list %s: %r", path, e)
 

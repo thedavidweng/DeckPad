@@ -4,10 +4,11 @@ from BlueZ's side."""
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from tests.support.fake_bluez import HOST_ADDRESS, HOST_NAME
 from tests.support.plugin_case import PluginTestCase
-from tests.test_pairing_mode import eventually, eventually_async, settled
+from tests.support.wait import eventually, settled, when
 
 
 def deckpad_work_in_progress():
@@ -135,6 +136,28 @@ class AReturningHost(ConnectionsCase):
 
         self.assertTrue(self.bluez.advertisement["Discoverable"])
         self.assertEqual(len(self.bluez.advertisements), 1)
+
+    async def test_an_old_reconnect_update_cannot_replace_the_pairing_advertisement(self):
+        await self.plugin.set_controller_mode(True)
+        mode = self.plugin._controller_mode
+        peripheral = mode._peripheral
+        advertise = peripheral.advertise
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def delayed(discoverable=True):
+            if not discoverable:
+                entered.set()
+                await release.wait()
+            await advertise(discoverable=discoverable)
+
+        with patch.object(peripheral, "advertise", delayed):
+            old = asyncio.create_task(mode._connections.reconcile())
+            await entered.wait()
+            pairing = asyncio.create_task(self.plugin.set_pairing_mode(True))
+            await asyncio.sleep(0)
+            release.set()
+            await asyncio.gather(old, pairing)
+        self.assertTrue(self.bluez.advertisement["Discoverable"])
 
     async def test_the_deck_waits_again_once_pairing_mode_closes(self):
         await self.plugin.set_controller_mode(True)
@@ -326,15 +349,6 @@ class WithSeveralPairedHosts(ConnectionsCase):
         self.assertTrue(self.bluez.devices[second].connected)
 
 
-async def when(plugin, predicate, timeout=2.0):
-    """The backend state once `predicate` holds for it, or the last state seen at the timeout."""
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while True:
-        state = await plugin.get_state()
-        if predicate(state) or loop.time() > deadline:
-            return state
-        await asyncio.sleep(0.01)
 
 
 if __name__ == "__main__":

@@ -5,13 +5,38 @@ directory afterwards. Observed from BlueZ's side and in the plugin's directories
 import asyncio
 import os
 import unittest
+from unittest.mock import patch
+from deckpad import controller_mode
 
 from tests.support.fake_bluez import HOST_ADDRESS
 from tests.support.plugin_case import PluginTestCase
-from tests.test_connections import ConnectionsCase, when
+from tests.test_connections import ConnectionsCase
+from tests.support.wait import when
 
 OTHER_HOST = "AA:BB:CC:DD:EE:01"
 HEADPHONES = "4C:87:5D:98:4A:A4"
+
+
+class UninstallDeadline(unittest.IsolatedAsyncioTestCase):
+    async def test_pairing_removal_and_identity_restore_share_one_deadline(self):
+        mode = controller_mode.ControllerMode()
+        cancelled = asyncio.Event()
+
+        async def remove():
+            await asyncio.sleep(0.03)
+
+        async def restore():
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+        with patch.object(controller_mode, "UNINSTALL_TIMEOUT", 0.05), \
+                patch.object(mode._connections, "forget_all_offline", remove), \
+                patch.object(controller_mode, "restore_leftover_device_id", restore):
+            await asyncio.wait_for(mode._remove_bluetooth_traces(), 0.15)
+        self.assertTrue(cancelled.is_set())
+        mode.shutdown()
 
 
 def completes_without_the_event_loop(coro):
@@ -57,20 +82,40 @@ class UninstallingDeckPad(ConnectionsCase):
         self.assertTrue(self.headphones.connected)
         self.assertNotIn(("RemoveDevice", self.headphones.path), self.bluez.calls)
 
+    async def test_reading_public_gatt_values_does_not_make_an_unrelated_device_a_host(self):
+        await self.bluez.host_reads("2a50", device=self.headphones.path)
+
+        await self.uninstall()
+
+        self.assertTrue(self.headphones.connected)
+        self.assertNotIn(self.headphones.path, self.bluez.disconnect_requests)
+        self.assertNotIn(("RemoveDevice", self.headphones.path), self.bluez.calls)
+
     async def test_it_deletes_deckpad_s_files(self):
-        # Left by a killed run; restoring it needs root, which the tests do not have.
-        interval_state = os.path.join(self.decky.DECKY_PLUGIN_RUNTIME_DIR, "connection_interval.json")
-        os.makedirs(self.decky.DECKY_PLUGIN_RUNTIME_DIR, exist_ok=True)
-        with open(interval_state, "w") as f:
-            f.write('{"index": 0, "min": 24, "max": 40}')
         await self.plugin.set_quit_combo(False)
 
         await self.uninstall()
 
-        self.assertFalse(os.path.exists(interval_state))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "paired_hosts.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")))
         self.assertFalse(os.path.exists(os.path.join(self.decky.DECKY_PLUGIN_LOG_DIR, "diagnostics.txt")))
+
+    async def test_uninstall_does_not_rewrite_the_host_file_it_is_deleting(self):
+        with patch("deckpad.hosts.storage.save") as save:
+            await self.uninstall()
+        save.assert_not_called()
+        self.assertNotIn(self.host, self.bluez.devices)
+        self.assertNotIn(self.other, self.bluez.devices)
+
+    async def test_it_keeps_an_interval_record_when_restoration_is_not_permitted(self):
+        interval_state = os.path.join(self.decky.DECKY_PLUGIN_RUNTIME_DIR, "connection_interval.json")
+        os.makedirs(self.decky.DECKY_PLUGIN_RUNTIME_DIR, exist_ok=True)
+        saved = '{"address": "E8:FB:1C:43:F3:44", "min": 24, "max": 40}'
+        with open(interval_state, "w") as f:
+            f.write(saved)
+        await self.uninstall()
+        with open(interval_state) as f:
+            self.assertEqual(f.read(), saved)
 
     async def test_it_leaves_bluetooth_as_it_was_before_deckpad(self):
         await self.uninstall()

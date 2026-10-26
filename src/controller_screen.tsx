@@ -29,22 +29,33 @@ function steamMenuButtonsSwitch(): SteamMenuButtonsSwitch | null {
     : null;
 }
 
-let steamMenusOff = false;
+let disabledSteamMenus: SteamMenuButtonsSwitch | null = null;
 
 function setSteamMenusOff(off: boolean): boolean {
-  const steamSwitch = steamMenuButtonsSwitch();
-  if (!steamSwitch) return false;
-  if (off !== steamMenusOff) {
-    if (off) steamSwitch.DisableHomeAndQuickAccessButtons();
-    else steamSwitch.EnableHomeAndQuickAccessButtons();
-    steamMenusOff = off;
+  if (!off) {
+    restoreSteamMenus();
+    return false;
   }
-  return steamMenusOff;
+  if (!disabledSteamMenus) {
+    const steamSwitch = steamMenuButtonsSwitch();
+    if (!steamSwitch) return false;
+    disabledSteamMenus = steamSwitch;
+    try {
+      steamSwitch.DisableHomeAndQuickAccessButtons();
+    } catch (error) {
+      restoreSteamMenus();
+      throw error;
+    }
+  }
+  return true;
 }
 
 // Steam keeps the switch after DeckPad goes away, so turning the menus back on must never be skipped.
 export function restoreSteamMenus() {
-  setSteamMenusOff(false);
+  if (disabledSteamMenus) {
+    disabledSteamMenus.EnableHomeAndQuickAccessButtons();
+    disabledSteamMenus = null;
+  }
 }
 
 let screenOpen = false;
@@ -59,6 +70,7 @@ export function useControllerScreenOpen(): boolean {
   const [open, setOpen] = useState(screenOpen);
   useEffect(() => {
     openListeners.add(setOpen);
+    setOpen(screenOpen);
     return () => {
       openListeners.delete(setOpen);
     };
@@ -72,6 +84,7 @@ export function openControllerScreen() {
 }
 
 export function closeControllerScreen() {
+  restoreSteamMenus();
   Navigation.NavigateBack();
   Navigation.CloseSideMenus();
 }
@@ -99,10 +112,7 @@ export function ControllerScreen() {
 
   useEffect(() => {
     setMenusOff(setSteamMenusOff(wantSteamMenusOff));
-    return () => {
-      restoreSteamMenus();
-      setMenusOff(false);
-    };
+    return restoreSteamMenus;
   }, [wantSteamMenusOff]);
 
   useEffect(() => {

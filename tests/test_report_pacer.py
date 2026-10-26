@@ -145,6 +145,14 @@ class PacingGamepadReports(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.link.sent, [b"A", b"REST"])
 
+    async def test_a_new_recipient_gets_unchanged_state_without_old_pending_input(self):
+        self.pacer.offer(b"A")
+        self.pacer.offer(b"old pending")
+        self.pacer.reset()
+        self.pacer.offer(b"A")
+        await asyncio.sleep(INTERVAL * 1.5)
+        self.assertEqual(self.link.sent, [b"A", b"A"])
+
     async def test_after_closing_nothing_more_is_sent(self):
         self.pacer.offer(b"A")
         self.pacer.offer(b"B")

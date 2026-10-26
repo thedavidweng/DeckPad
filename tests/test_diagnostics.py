@@ -1,19 +1,40 @@
 """Troubleshooting diagnostics: what the panel's secondary Troubleshooting section shows and copies.
 
-Driven through the plugin backend against a fake org.bluez on a private bus. The tests do not run as
-root, as DeckPad would on a misconfigured Decky."""
+Driven through the plugin backend against a fake org.bluez on a private bus. Privilege tests explicitly
+select root or non-root, so the suite also works inside a build container."""
 
 import unittest
+import threading
+from deckpad import bluez, diagnostics as diagnostics_module
 from unittest import mock
 
 from tests.support.deck_state import deck_state_report
 from tests.support.fake_bluez import HOST_ADDRESS
 from tests.support.plugin_case import PluginTestCase
 from tests.test_input_pipeline import A_HELD, InputCase
-from tests.test_pairing_mode import settled
+from tests.support.wait import settled
 
 
 class Diagnostics(PluginTestCase):
+    async def test_privileged_reads_run_off_the_business_event_loop(self):
+        threads = []
+
+        def identity(*_):
+            threads.append(threading.get_ident())
+            return "bluez"
+
+        def interval(*_):
+            threads.append(threading.get_ident())
+            return (12, 16)
+
+        with mock.patch.object(diagnostics_module.os, "geteuid", return_value=0), \
+                mock.patch.object(diagnostics_module.device_id, "current", side_effect=identity), \
+                mock.patch.object(diagnostics_module.connection_interval, "current", side_effect=interval):
+            report = await self.plugin.get_diagnostics()
+        self.assertEqual(len(threads), 2)
+        self.assertNotIn(threading.get_ident(), threads)
+        self.assertEqual(dict(report["summary"])["Connection interval"], "15.00-20.00 ms")
+
     async def test_they_describe_controller_mode_and_bluetooth(self):
         await self.plugin.set_controller_mode(True)
 
@@ -21,7 +42,7 @@ class Diagnostics(PluginTestCase):
 
         self.assertIn("Controller Mode: on", diagnostics["text"])
         self.assertIn("Bluetooth service: running", diagnostics["text"])
-        self.assertIn("E8:FB:1C:43:F3:44", diagnostics["text"])
+        self.assertNotIn("E8:FB:1C:43:F3:44", diagnostics["text"])
         self.assertIn("dbus-fast 5.2.0", diagnostics["text"])
 
     async def test_they_list_paired_hosts(self):
@@ -33,10 +54,20 @@ class Diagnostics(PluginTestCase):
 
         diagnostics = await self.plugin.get_diagnostics()
 
-        self.assertIn("%s mbp2019 (connected)" % HOST_ADDRESS, diagnostics["text"])
+        self.assertIn("Host 1 (connected)", diagnostics["text"])
+        self.assertNotIn(HOST_ADDRESS, diagnostics["text"])
+        self.assertNotIn("mbp2019", diagnostics["text"])
+
+    async def test_permission_failure_is_unknown_instead_of_a_stopped_service(self):
+        with mock.patch.object(bluez, "service_pid", side_effect=bluez.BluezError(
+                "org.freedesktop.DBus.Error.AccessDenied", "permission denied")):
+            diagnostics = await self.plugin.get_diagnostics()
+        self.assertEqual(dict(diagnostics["summary"])["Bluetooth service"], "unknown")
+        self.assertIn("AccessDenied", diagnostics["text"])
 
     async def test_they_say_which_root_only_features_are_unavailable(self):
-        diagnostics = await self.plugin.get_diagnostics()
+        with mock.patch.object(diagnostics_module.os, "geteuid", return_value=1000):
+            diagnostics = await self.plugin.get_diagnostics()
 
         self.assertIn("Running as root: no", diagnostics["text"])
         self.assertIn("Controller Identity override: unavailable (needs root)", diagnostics["text"])
@@ -94,6 +125,13 @@ class WhenErrorsHappened(PluginTestCase):
 
 # 2026-10-06T12:00:00Z
 HAPPENED = 1791288000
+
+
+class PublicAddresses(unittest.TestCase):
+    def test_logs_and_dbus_paths_use_the_same_anonymous_identity(self):
+        text = "AA:BB:CC:DD:EE:FF dev_AA_BB_CC_DD_EE_FF aa-bb-cc-dd-ee-ff"
+        self.assertEqual(diagnostics_module._redact_addresses(text, {"AA:BB:CC:DD:EE:FF": "Host 1"}),
+                         "Host 1 dev_Host 1 Host 1")
 
 
 class DiagnosticsWithoutBluetooth(PluginTestCase):
