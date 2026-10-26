@@ -61,8 +61,8 @@ jobs:
       # Match the CLI version used by decky-plugin-database's build-plugins.yml.
       - name: Build with official Decky CLI
         run: |
-          curl --fail --location https://github.com/SteamDeckHomebrew/cli/releases/download/0.0.7/decky-linux-x86_64 --output /tmp/decky
-          echo '0d0f8c127cd3dba12b75f771c786194ca9f4f771b4787ae24de8b1af45af4294  /tmp/decky' | sha256sum -c -
-          chmod +x /tmp/decky
-          /tmp/decky plugin build -b -o /tmp/deckpad-package .
+          curl --fail --location https://github.com/SteamDeckHomebrew/cli/releases/download/0.0.7/decky-linux-x86_64 --output "$RUNNER_TEMP/decky-cli"
+          echo "0d0f8c127cd3dba12b75f771c786194ca9f4f771b4787ae24de8b1af45af4294  $RUNNER_TEMP/decky-cli" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/decky-cli"
+          "$RUNNER_TEMP/decky-cli" plugin build -b -o /tmp/deckpad-package .
       - run: python -m tests.check_package /tmp/deckpad-package/DeckPad.zip
