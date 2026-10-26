@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
       - run: sudo apt-get update && sudo apt-get install -y dbus
@@ -51,7 +51,7 @@ jobs:
           node-version: "24"
           check-latest: true
           cache: pnpm
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
       - run: pnpm install --frozen-lockfile
@@ -64,5 +64,5 @@ jobs:
           curl --fail --location https://github.com/SteamDeckHomebrew/cli/releases/download/0.0.7/decky-linux-x86_64 --output "$RUNNER_TEMP/decky-cli"
           echo "0d0f8c127cd3dba12b75f771c786194ca9f4f771b4787ae24de8b1af45af4294  $RUNNER_TEMP/decky-cli" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/decky-cli"
-          "$RUNNER_TEMP/decky-cli" plugin build -b -o /tmp/deckpad-package .
+          "$RUNNER_TEMP/decky-cli" plugin build -o /tmp/deckpad-package .
       - run: python -m tests.check_package /tmp/deckpad-package/DeckPad.zip

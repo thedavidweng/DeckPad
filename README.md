@@ -116,7 +116,7 @@ names and the adapter alias; inspect recent log text for other identifying infor
   Docker daemon, matching the Store's build workflow:
 
   ```sh
-  decky plugin build -b -o ./out .
+  decky plugin build -o ./out .
   python3 -m tests.check_package ./out/DeckPad.zip
   ```
   On macOS, pass `-t` with an absolute temporary directory shared with Docker. CI runs this packaging
