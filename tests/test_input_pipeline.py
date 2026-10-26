@@ -369,14 +369,14 @@ class TheControllerScreensPreview(InputCase):
         await self.plugin.set_controller_mode(True)
         await self.plugin.watch_gamepad(True)
 
-        # Offer changes every 4 ms; CPU contention may make the actual input rate lower.
+        # A continuous sweep avoids aliasing; CPU contention may lower the input rate.
         loop = asyncio.get_running_loop()
         started = loop.time()
         deadline = started + 0.5
-        held = False
+        n = 0
         while loop.time() < deadline:
-            held = not held
-            self.controller.send(deck_state_report("A") if held else deck_state_report())
+            self.controller.send(deck_state_report(lx=n * 100 - 30000))
+            n += 1
             await asyncio.sleep(0.004)
 
         self.assertLessEqual(len(self.previews()), (loop.time() - started) * 30 + 3)

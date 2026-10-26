@@ -1,0 +1,59 @@
+name: Package audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: "9"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          check-latest: true
+          cache: pnpm
+      - name: Build with official Decky Rollup
+        run: pnpm install --frozen-lockfile && pnpm build
+      - name: Package README inputs and summarize
+        shell: bash
+        run: |
+          mkdir -p out/DeckPad
+          cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
+          (cd out && zip -qr DeckPad.zip DeckPad -x '*/__pycache__/*')
+          python3 scripts/package-summary.py out/DeckPad.zip | tee package-summary.md
+          cat package-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Hosted import and construction timing (not Deck startup)
+        shell: bash
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import time
+          from tests.support.fake_decky import install
+          decky = install()
+          start = time.perf_counter()
+          import main
+          imported = time.perf_counter()
+          plugin = main.Plugin()
+          constructed = time.perf_counter()
+          print(f"\nHosted Linux with FakeDecky: backend import {(imported-start)*1000:.2f} ms; "
+                f"Plugin construction {(constructed-imported)*1000:.2f} ms. "
+                "No real Decky startup, Bluetooth enable, or input-latency acceptance.")
+          decky.cleanup()
+          PY
