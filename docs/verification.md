@@ -520,7 +520,7 @@ was added. Each row records why the retained mechanism is necessary and the chec
 | `index.tsx` | Render backend facts using official components; one shared request handler | All QAM action paths clear old transport errors; backend errors remain backend-owned |
 | `troubleshooting.tsx` | Local expanded state and latest diagnostics request; ignore results after hide/unmount | Overlapping queries and pending failure tests; both existing Clipboard paths retained until CEF measurement |
 | `gamepad_outline.tsx` | Steam artwork access stays inside this component, with the existing minimal preview if absent | Reviewed mappings; hardware artwork and Steam version compatibility pending |
-| Metadata, dependencies, build | ESM, API v1/root, official `deckyPlugin()`, pinned vendored pure Python with licenses | Metadata tests, frozen lockfile, official archive/content verification; root justified by `/proc` memory, MGMT and HCI access |
+| Metadata, dependencies, build | ESM, API v1/root, official `deckyPlugin()`, pinned vendored pure Python with licenses | Frozen lockfile, official archive/content verification; root justified by `/proc` memory, MGMT and HCI access. 2026-10-27: repository metadata assertion tests removed; the archive verifier still checks API version, root flag and packaged contents. |
 | `tests/support` | Fake only external D-Bus/controller/MGMT interfaces; shared asynchronous wait functions | Removed migration stubs and duplicate waits; test scenarios reuse existing behavior fixtures |
 
 ## Current compatibility boundaries
