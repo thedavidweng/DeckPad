@@ -14,7 +14,7 @@ DeckPad includes the following third-party software. Full license texts ship nex
 
 The Decky Plugin Store zip contains `LICENSE`, `README.md`, `main.py`, `package.json`, `plugin.json`,
 `dist/`, and `py_modules/`, but not this file, so every license text above also ships inside
-`py_modules/` next to the code it covers. `tests/test_store_package.py` checks that.
+`py_modules/` next to the code it covers. The ZIP verifier checks packaged files against the repository.
 
 DeckPad does not include code from the projects credited as prior art in the README (DeckJoy,
 DeckControllerOS, the Linux `hid-steam` driver, SDL). They were used as references for the design and

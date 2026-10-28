@@ -4,11 +4,23 @@ Run from the repository: python3 -m tests.check_package /path/to/DeckPad.zip
 """
 
 import json
+import os
 import sys
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
-from tests.test_store_package import ROOT, _shipped_files
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def _shipped_files():
+    """Repository paths that Decky CLI 0.0.7 puts in the plugin ZIP."""
+    files = ["LICENSE", "main.py", "package.json", "plugin.json", "README.md"]
+    files += [name for name in os.listdir(ROOT) if name.endswith(".py")]
+    for directory in ("dist", "bin", "defaults", "py_modules"):
+        for parent, dirs, names in os.walk(ROOT / directory):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
+            files += [os.path.relpath(os.path.join(parent, name), ROOT) for name in names]
+    return sorted(set(f for f in files if (ROOT / f).is_file()))
 
 
 def check(path):
