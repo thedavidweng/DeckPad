@@ -58,6 +58,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:frontend
       - run: pnpm build
+      - name: Package README inputs and summarize
+        shell: bash
+        run: |
+          mkdir -p out/DeckPad
+          cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
+          (cd out && zip -qr DeckPad.zip DeckPad -x '*/__pycache__/*')
+          python3 scripts/package-summary.py out/DeckPad.zip | tee package-summary.md
+          cat package-summary.md >> "$GITHUB_STEP_SUMMARY"
       # Match the CLI version used by decky-plugin-database's build-plugins.yml.
       - name: Build with official Decky CLI
         run: |
