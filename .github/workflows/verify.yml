@@ -58,6 +58,31 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:frontend
       - run: pnpm build
+      - name: Package README inputs and summarize
+        shell: bash
+        run: |
+          mkdir -p out/DeckPad
+          cp -r dist py_modules main.py package.json plugin.json LICENSE README.md out/DeckPad/
+          (cd out && zip -qr DeckPad.zip DeckPad -x '*/__pycache__/*')
+          python3 scripts/package-summary.py out/DeckPad.zip | tee package-summary.md
+          cat package-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Hosted import and construction timing (not Deck startup)
+        shell: bash
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import time
+          from tests.support.fake_decky import install
+          decky = install()
+          start = time.perf_counter()
+          import main
+          imported = time.perf_counter()
+          plugin = main.Plugin()
+          constructed = time.perf_counter()
+          print(f"\nHosted Linux with FakeDecky: backend import {(imported-start)*1000:.2f} ms; "
+                f"Plugin construction {(constructed-imported)*1000:.2f} ms. "
+                "No real Decky startup, Bluetooth enable, or input-latency acceptance.")
+          decky.cleanup()
+          PY
       # Match the CLI version used by decky-plugin-database's build-plugins.yml.
       - name: Build with official Decky CLI
         run: |
