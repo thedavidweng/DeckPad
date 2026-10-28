@@ -108,8 +108,8 @@ names and the adapter alias; inspect recent log text for other identifying infor
 - Backend tests need **Linux**, `dbus-daemon`, and Python 3.11 or newer: `python3 -m unittest discover -s tests -t .`.
   The suite exercises Linux sockets and `/proc`; macOS is suitable for focused pure-function tests.
 - Frontend checks: `pnpm install --frozen-lockfile && pnpm typecheck && pnpm test:frontend && pnpm build`.
-  The verification workflow uses Node 24 and pnpm 12.10.1; the official builder currently uses pnpm 9.
-- Python static checks: `python3 -m pip install ruff==0.15.0`, then
+  The verification workflow uses Node 26.12.1 and pnpm 12.15.0; the official builder currently uses pnpm 9.
+- Python static checks: `python3 -m pip install --only-binary=:all: ruff==0.17.3`, then
   `python3 -m ruff check main.py py_modules/deckpad tests` and
   `python3 -m compileall -q main.py py_modules/deckpad tests`.
 - Plugin ZIP: use the [official Decky CLI](https://github.com/SteamDeckHomebrew/cli) 0.0.7 and a running

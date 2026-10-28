@@ -31,11 +31,11 @@
   "homepage": "https://github.com/thedavidweng/DeckPad#readme",
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
-    "@decky/ui": "^4.16.0",
+    "@decky/ui": "^4.16.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/react-router": "5.1.20",
-    "rollup": "^4.65.0",
+    "rollup": "^4.65.1",
     "typescript": "^7.0.2"
   },
   "dependencies": {
