@@ -17,9 +17,6 @@
   <meta property="og:image:alt" content="DeckPad: your Steam Deck, now a Bluetooth controller. Shown next to DeckPad's panel connected to a MacBook Air.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://deckpad.blahaj.uk/og-image.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -69,7 +66,7 @@
   <main>
     <div class="hero">
       <div class="signal" aria-hidden="true"><span></span><span></span><span></span></div>
-      <img class="hero-img" src="deck-controller-screen.webp" width="2000" height="1039" alt="A Steam Deck showing DeckPad's Controller Screen while connected to a MacBook Air">
+      <img class="hero-img" src="deck-controller-screen.webp" srcset="deck-controller-screen-660.webp 660w, deck-controller-screen-1200.webp 1200w, deck-controller-screen.webp 2000w" sizes="(max-width: 500px) 90vw, (max-width: 1280px) 75vw, 960px" width="2000" height="1039" fetchpriority="high" alt="A Steam Deck showing DeckPad's Controller Screen while connected to a MacBook Air">
     </div>
 
     <div class="section light">
@@ -84,27 +81,27 @@
         <h2>Features</h2>
         <div class="features">
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-bluetooth"/></svg>Standard pairing</h4>
+            <h3><svg class="icon"><use href="#i-bluetooth"/></svg>Standard pairing</h3>
             <p>The PC, phone, or tablet pairs with the Deck in its own <strong>Bluetooth settings</strong>, like any wireless controller.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-gamepad"/></svg>Xbox layout</h4>
+            <h3><svg class="icon"><use href="#i-gamepad"/></svg>Xbox layout</h3>
             <p>DeckPad presents itself as an <strong>Xbox Wireless Controller</strong> with face buttons, bumpers, analog triggers, both sticks, and the D-pad.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-desktop"/></svg>Controller Screen</h4>
+            <h3><svg class="icon"><use href="#i-desktop"/></svg>Controller Screen</h3>
             <p>A full-screen page that keeps <strong>Steam on the Deck</strong> from reacting to your presses and shows what the host receives.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-sync"/></svg>Reconnecting</h4>
+            <h3><svg class="icon"><use href="#i-sync"/></svg>Reconnecting</h3>
             <p>With <strong>Controller Mode</strong> on, a paired host reconnects without pairing again, by itself or when you select the Deck in its Bluetooth settings.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-power"/></svg>Quit Combo</h4>
+            <h3><svg class="icon"><use href="#i-power"/></svg>Quit Combo</h3>
             <p>Hold <strong>Menu + View + L1 + R1</strong> to turn Controller Mode off from the controls. You can disable the combo if a game needs it.</p>
           </div>
           <div class="feature">
-            <h4><svg class="icon"><use href="#i-shield"/></svg>Reversible</h4>
+            <h3><svg class="icon"><use href="#i-shield"/></svg>Reversible</h3>
             <p>DeckPad's Bluetooth changes are made in memory and undone when <strong>Controller Mode</strong> turns off. SteamOS's files are left as they are.</p>
           </div>
         </div>
@@ -134,47 +131,47 @@
         <h2>FAQ</h2>
 
         <div class="faq">
-          <h4>Does the other device need any software?</h4>
+          <h3>Does the other device need any software?</h3>
           <p>No, but it must support Bluetooth Low Energy game controllers (HID over GATT). Devices with only Classic Bluetooth cannot connect.</p>
         </div>
 
         <div class="faq">
-          <h4>Which devices can I use it with?</h4>
+          <h3>Which devices can I use it with?</h3>
           <p>DeckPad has been tested with a Linux PC, where it shows up as an Xbox controller. Windows, macOS, Android, iOS, and other hosts have not been tested yet. If you try one, please <a href="https://github.com/thedavidweng/DeckPad/issues">report the result in an issue</a>.</p>
         </div>
 
         <div class="faq">
-          <h4>Which controls are sent?</h4>
+          <h3>Which controls are sent?</h3>
           <p>Face buttons, bumpers, analog triggers, both sticks and stick clicks, the D-pad, View, and Menu. The Steam button becomes the Xbox (Guide) button and the <code>…</code> button becomes Share. Rear buttons, trackpads, gyro, and rumble are not supported.</p>
         </div>
 
         <div class="faq">
-          <h4>What does DeckPad change on my Deck?</h4>
+          <h3>What does DeckPad change on my Deck?</h3>
           <p>DeckPad runs as root. While Controller Mode is on, it changes bluetoothd's DeviceID in memory so hosts see an Xbox controller, shortens the Bluetooth LE connection interval, and answers pairing requests. All of it is undone when Controller Mode turns off, and Controller Mode is always off after a reboot. Uninstalling removes only the pairings made through DeckPad and its own files. <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/system-changes.md">Full details</a>.</p>
         </div>
 
         <div class="faq">
-          <h4>Can I play a game on the Deck at the same time?</h4>
+          <h3>Can I play a game on the Deck at the same time?</h3>
           <p>No. A game running on the Deck still receives the controls, so close it first. The Controller Screen keeps Steam's own menus from reacting while you play on the host.</p>
         </div>
 
         <div class="faq">
-          <h4>Can I connect more than one device?</h4>
+          <h3>Can I connect more than one device?</h3>
           <p>One at a time. You can pair several; the first one to connect is used. <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/limitations.md">Known limitations</a>.</p>
         </div>
 
         <div class="faq">
-          <h4>Does it work with the Bluetooth plugin?</h4>
+          <h3>Does it work with the Bluetooth plugin?</h3>
           <p>Yes. The <a href="https://github.com/Outpox/Bluetooth">Bluetooth</a> plugin connects devices <em>to</em> the Deck; DeckPad works the other way round. You can install both.</p>
         </div>
 
         <div class="faq">
-          <h4>The other device does not find my Deck. What now?</h4>
+          <h3>The other device does not find my Deck. What now?</h3>
           <p>The Deck only shows up in other devices' scan lists while Pairing Mode is open, so select <strong>Pair a Device</strong> and scan again. If pairing fails, remove the Deck from the host's Bluetooth settings and retry. More in the <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/troubleshooting.md">troubleshooting guide</a>.</p>
         </div>
 
         <div class="faq">
-          <h4>How can I get help?</h4>
+          <h3>How can I get help?</h3>
           <p>Expand <strong>Troubleshooting</strong> in DeckPad's panel to get a diagnostics report, then attach it when you <a href="https://github.com/thedavidweng/DeckPad/issues">open an issue on GitHub</a>.</p>
         </div>
       </div>
@@ -188,25 +185,25 @@
       </div>
       <div class="footer-spacer"></div>
       <div class="footer-col">
-        <h5>Project</h5>
+        <h2>Project</h2>
         <a href="https://github.com/thedavidweng/DeckPad">Source code</a>
         <a href="https://github.com/thedavidweng/DeckPad/releases">Releases</a>
         <a href="https://github.com/thedavidweng/DeckPad/issues">Issues</a>
       </div>
       <div class="footer-col">
-        <h5>Docs</h5>
+        <h2>Docs</h2>
         <a href="https://github.com/thedavidweng/DeckPad#readme">README</a>
         <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/limitations.md">Limitations</a>
         <a href="https://github.com/thedavidweng/DeckPad/blob/main/docs/troubleshooting.md">Troubleshooting</a>
       </div>
       <div class="footer-col">
-        <h5>Decky</h5>
+        <h2>Decky</h2>
         <a href="https://decky.xyz/">Decky Loader</a>
         <a href="https://plugins.deckbrew.xyz/">Plugin Store</a>
         <a href="https://github.com/Outpox/Bluetooth">Bluetooth plugin</a>
       </div>
       <div class="footer-col">
-        <h5>License</h5>
+        <h2>License</h2>
         <a href="https://github.com/thedavidweng/DeckPad/blob/main/LICENSE">BSD 3-Clause</a>
         <a href="https://github.com/thedavidweng/DeckPad/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a>
       </div>
