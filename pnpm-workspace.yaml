@@ -1,0 +1,9 @@
+packages:
+  - .
+
+# pnpm 9 reads the matching overrides from package.json.
+# del disables glob when calling rimraf.
+overrides:
+  "@rollup/plugin-node-resolve>deepmerge": npm:lodash.merge@4.6.2
+  "@rollup/plugin-commonjs>glob": 14.0.3
+  "rimraf@3>glob": "-"
