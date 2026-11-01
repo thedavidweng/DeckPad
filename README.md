@@ -108,7 +108,8 @@ names and the adapter alias; inspect recent log text for other identifying infor
 - Backend tests need **Linux**, `dbus-daemon`, and Python 3.11 or newer: `python3 -m unittest discover -s tests -t .`.
   The suite exercises Linux sockets and `/proc`; macOS is suitable for focused pure-function tests.
 - Frontend checks: `pnpm install --frozen-lockfile && pnpm typecheck && pnpm test:frontend && pnpm build`.
-  The verification workflow uses the latest Node LTS and pnpm 12.15.0; the official builder currently uses pnpm 9.
+  The verification workflow uses the latest Node LTS and pnpm 12.15.0. The official builder uses pnpm 12;
+  the Store workflow also retains pnpm 9 for emergency lockfile updates.
 - Python static checks: `python3 -m pip install --only-binary=:all: ruff==0.17.3`, then
   `python3 -m ruff check main.py py_modules/deckpad tests` and
   `python3 -m compileall -q main.py py_modules/deckpad tests`.
