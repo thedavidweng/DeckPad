@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { stripTypeScriptTypes } from 'node:module';
+import { createRequire } from 'node:module';
 import { setImmediate } from 'node:timers/promises';
 import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
 import test from 'node:test';
+
+const ts = createRequire(import.meta.resolve('@decky/rollup'))('typescript');
 
 // Exercise the actual hook effects; React and Decky are the external interfaces under test.
 async function backend() {
@@ -22,8 +24,12 @@ async function backend() {
     useEffect: effect => effects.push(effect),
   };
   const context = createContext({ console });
-  const source = stripTypeScriptTypes(await readFile(new URL('../../src/backend.ts', import.meta.url), 'utf8'));
-  const module = new SourceTextModule(source, { context });
+  const source = await readFile(new URL('../../src/backend.ts', import.meta.url), 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
+    fileName: 'backend.ts',
+  }).outputText;
+  const module = new SourceTextModule(compiled, { context });
   await module.link(name => {
     const exports = name === 'react' ? react : api;
     return new SyntheticModule(Object.keys(exports), function () {
