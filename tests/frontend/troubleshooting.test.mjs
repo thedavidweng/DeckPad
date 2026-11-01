@@ -2,14 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { setImmediate } from 'node:timers/promises';
-import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
+import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 
 const ts = createRequire(import.meta.resolve('@decky/rollup'))('typescript');
 
 async function diagnostics() {
   const calls = [], values = [], effects = [];
-  const context = createContext({ console });
   const bindings = {
     react: {
       useState: initial => [initial === false ? true : initial, next => values.push(next)],
@@ -22,15 +21,16 @@ async function diagnostics() {
   };
   const source = await readFile(new URL('../../src/troubleshooting.tsx', import.meta.url), 'utf8');
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
     fileName: 'troubleshooting.tsx',
   }).outputText;
-  const module = new SourceTextModule(compiled, { context });
-  await module.link(name => new SyntheticModule(Object.keys(bindings[name]), function () {
-    for (const [key, value] of Object.entries(bindings[name])) this.setExport(key, value);
-  }, { context }));
-  await module.evaluate();
-  module.namespace.Troubleshooting();
+  const exports = {};
+  const require = name => {
+    assert.ok(Object.hasOwn(bindings, name), `unexpected import: ${name}`);
+    return bindings[name];
+  };
+  runInNewContext(compiled, { console, exports, require });
+  exports.Troubleshooting();
   return { calls, values, effect: effects[0] };
 }
 

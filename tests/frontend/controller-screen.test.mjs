@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
+import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 
 // Compile with the TypeScript compiler already used by the official Decky Rollup preset.
@@ -10,7 +10,6 @@ const ts = createRequire(import.meta.resolve('@decky/rollup'))('typescript');
 async function screen(store) {
   const effects = [], calls = [];
   const window = { SteamUIStore: store };
-  const context = createContext({ window, console });
   const sources = {
     react: {
       useState: value => [value, () => {}],
@@ -36,16 +35,17 @@ async function screen(store) {
   };
   const source = await readFile(new URL('../../src/controller_screen.tsx', import.meta.url), 'utf8');
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
     fileName: 'controller_screen.tsx',
   }).outputText;
-  const module = new SourceTextModule(compiled, { context });
-  await module.link(name => new SyntheticModule(Object.keys(sources[name]), function () {
-    for (const [key, value] of Object.entries(sources[name])) this.setExport(key, value);
-  }, { context }));
-  await module.evaluate();
-  const tree = module.namespace.ControllerScreen();
-  return { window, effects, calls, tree, exports: module.namespace };
+  const exports = {};
+  const require = name => {
+    assert.ok(Object.hasOwn(sources, name), `unexpected import: ${name}`);
+    return sources[name];
+  };
+  runInNewContext(compiled, { window, console, exports, require });
+  const tree = exports.ControllerScreen();
+  return { window, effects, calls, tree, exports };
 }
 
 test('cleanup uses the switch that disabled menus even if SteamUIStore changes', async () => {
@@ -110,7 +110,6 @@ test('capturing consumes game controls and leaves Steam menu button events alone
 });
 
 async function plugin(overrides) {
-  const context = createContext({ console });
   const source = await readFile(new URL('../../src/index.tsx', import.meta.url), 'utf8');
   const ast = ts.createSourceFile('index.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const imports = new Map(ast.statements.filter(ts.isImportDeclaration).map(node => [
@@ -127,15 +126,13 @@ async function plugin(overrides) {
   };
   imports.set('react/jsx-runtime', ['jsx', 'jsxs', 'Fragment']);
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
     fileName: 'index.tsx',
   }).outputText;
-  const module = new SourceTextModule(compiled, { context });
-  await module.link(name => new SyntheticModule(imports.get(name), function () {
-    for (const key of imports.get(name)) this.setExport(key, bindings[key] ?? (() => null));
-  }, { context }));
-  await module.evaluate();
-  return module.namespace.default();
+  const exports = {};
+  const require = name => Object.fromEntries(imports.get(name).map(key => [key, bindings[key] ?? (() => null)]));
+  runInNewContext(compiled, { console, exports, require });
+  return exports.default();
 }
 
 test('dismount removes the route even when Steam refuses restoration', async () => {
