@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { setImmediate } from 'node:timers/promises';
-import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
+import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 
 const ts = createRequire(import.meta.resolve('@decky/rollup'))('typescript');
@@ -23,24 +23,22 @@ async function backend() {
     useState: () => [null, value => values.push(value)],
     useEffect: effect => effects.push(effect),
   };
-  const context = createContext({ console });
   const source = await readFile(new URL('../../src/backend.ts', import.meta.url), 'utf8');
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
     fileName: 'backend.ts',
   }).outputText;
-  const module = new SourceTextModule(compiled, { context });
-  await module.link(name => {
-    const exports = name === 'react' ? react : api;
-    return new SyntheticModule(Object.keys(exports), function () {
-      for (const [name, value] of Object.entries(exports)) this.setExport(name, value);
-    }, { context });
-  });
-  await module.evaluate();
+  const exports = {};
+  const imports = { react, '@decky/api': api };
+  const require = name => {
+    assert.ok(Object.hasOwn(imports, name), `unexpected import: ${name}`);
+    return imports[name];
+  };
+  runInNewContext(compiled, { console, exports, require });
   return {
     values, calls, listeners,
     mount(name, ...args) {
-      module.namespace[name](...args);
+      exports[name](...args);
       return effects.shift()();
     },
     emit(event, value) {
